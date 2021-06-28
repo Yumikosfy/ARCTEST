@@ -41,6 +41,7 @@
 
 #include "CommonDef.h"
 #include "TComList.h"
+#include <vector>
 
 class TComPic;
 
@@ -55,8 +56,12 @@ private:
   UInt        m_uiMaxTLayers;           // maximum number of temporal layers
 
   // Structure
-  UInt        m_uiWidth;
-  UInt        m_uiHeight;
+  UInt        m_uiSPSId;
+//  UInt        m_uiWidth;
+//  UInt        m_uiHeight;
+  UInt        m_uiNominalWidth;
+  UInt        m_uiNominalHeight;
+//  UInt        m_uiPictureSizeIdx;
   Int         m_aiPad[2];
   UInt        m_uiMaxCUWidth;
   UInt        m_uiMaxCUHeight;
@@ -122,10 +127,16 @@ public:
   virtual ~TComSPS();
   
   // structure
-  Void setWidth       ( UInt u ) { m_uiWidth = u;           }
-  UInt getWidth       ()         { return  m_uiWidth;       }
-  Void setHeight      ( UInt u ) { m_uiHeight = u;          }
-  UInt getHeight      ()         { return  m_uiHeight;      }
+  UInt getSPSId(){ return m_uiSPSId; }
+  Void setSPSId( UInt u ){ m_uiSPSId = u; }
+  Void setNominalWidth ( UInt u ) { m_uiNominalWidth = u;      }
+  UInt getNominalWidth ()         { return  m_uiNominalWidth;  }
+  Void setNominalHeight( UInt u ) { m_uiNominalHeight = u;     }
+  UInt getNominalHeight()         { return  m_uiNominalHeight; }
+//  UInt getPictureSizeIdx()        { return m_uiPictureSizeIdx; }
+//  Void setPictureSizeIdx(UInt u)  { m_uiPictureSizeIdx = u; m_uiWidth = m_uiNominalWidth >> u; m_uiHeight = m_uiNominalHeight >> u;}
+//  UInt getPictureWidth ()         { return  m_uiWidth;       }
+//  UInt getPictureHeight()         { return  m_uiHeight;      }
   Void setMaxCUWidth  ( UInt u ) { m_uiMaxCUWidth = u;      }
   UInt getMaxCUWidth  ()         { return  m_uiMaxCUWidth;  }
   Void setMaxCUHeight ( UInt u ) { m_uiMaxCUHeight = u;     }
@@ -234,10 +245,17 @@ private:
 #if CONSTRAINED_INTRA_PRED
   Bool        m_bConstrainedIntraPred;    //  constrained_intra_pred_flag
 #endif
- 
-#if SUB_LCU_DQP
+
   // access channel
+  UInt        m_uiPPSId;
+  UInt        m_uiSPSId;
   TComSPS*    m_pcSPS;
+
+  UInt m_uiWidth;
+  UInt m_uiHeight;
+  UInt m_uiPictureSizeIdx;
+
+#if SUB_LCU_DQP
   UInt        m_uiMaxCuDQPDepth;
   UInt        m_uiMinCuDQPSize;
 #endif
@@ -254,15 +272,27 @@ public:
   Void      setConstrainedIntraPred ( Bool b ) { m_bConstrainedIntraPred = b;     }
 #endif
 
+  UInt      getPPSId(){ return m_uiPPSId; }
+  Void      setPPSId( UInt u ){ m_uiPPSId = u;}
+
+  UInt      getSPSId(){ return m_uiSPSId; }
+  Void      setSPSId( UInt u){ m_uiSPSId = u; }
+
+  UInt      getPictureWidth ()         { return  m_uiWidth;       }
+  UInt      getPictureHeight()         { return  m_uiHeight;      }
+
+  UInt      getPictureSizeIdx()        { return m_uiPictureSizeIdx; }
+  Void      setPictureSizeIdx(UInt u)  { m_uiPictureSizeIdx = u; m_uiWidth = m_pcSPS->getNominalWidth() >> u; m_uiHeight = m_pcSPS->getNominalHeight() >> u;}
+
   UInt      getNumTLayerSwitchingFlags()                                  { return m_uiNumTlayerSwitchingFlags; }
   Void      setNumTLayerSwitchingFlags( UInt uiNumTlayerSwitchingFlags )  { assert( uiNumTlayerSwitchingFlags < MAX_TLAYER ); m_uiNumTlayerSwitchingFlags = uiNumTlayerSwitchingFlags; }
 
   Bool      getTLayerSwitchingFlag( UInt uiTLayer )                       { assert( uiTLayer < MAX_TLAYER ); return m_abTLayerSwitchingFlag[ uiTLayer ]; }
   Void      setTLayerSwitchingFlag( UInt uiTLayer, Bool bValue )          { m_abTLayerSwitchingFlag[ uiTLayer ] = bValue; }
 
-#if SUB_LCU_DQP
-  Void      setSPS              ( TComSPS* pcSPS ) { m_pcSPS = pcSPS; }
+  Void      setSPS              ( TComSPS* pcSPS ) { m_pcSPS = pcSPS; m_uiSPSId = m_pcSPS->getSPSId();}
   TComSPS*  getSPS              ()         { return m_pcSPS;          }
+#if SUB_LCU_DQP
   Void      setMaxCuDQPDepth    ( UInt u ) { m_uiMaxCuDQPDepth = u;   }
   UInt      getMaxCuDQPDepth    ()         { return m_uiMaxCuDQPDepth;}
   Void      setMinCuDQPSize     ( UInt u ) { m_uiMinCuDQPSize = u;    }
@@ -281,6 +311,7 @@ private:
   NalUnitType m_eNalUnitType;         ///< Nal unit type for the slice
 #endif
   SliceType   m_eSliceType;
+  UInt        m_uiPPSId;
   Int         m_iSliceQp;
   Int         m_iSymbolMode;
   Bool        m_bLoopFilterDisable;
@@ -351,14 +382,15 @@ public:
   
   Void      initSlice       ();
   
-  Void      setSPS          ( TComSPS* pcSPS ) { m_pcSPS = pcSPS; }
   TComSPS*  getSPS          () { return m_pcSPS; }
   
-  Void      setPPS          ( TComPPS* pcPPS ) { m_pcPPS = pcPPS; }
+  Void      setPPS          ( const std::vector<TComPPS*>& cPPS, const UInt uiPPSId );
+  Void      setPPS          ( TComPPS* pcPPS ){ m_pcPPS = pcPPS; m_pcSPS = pcPPS->getSPS(); m_uiPPSId = m_pcPPS->getPPSId(); }
   TComPPS*  getPPS          () { return m_pcPPS; }
   
   SliceType getSliceType    ()                          { return  m_eSliceType;         }
   Int       getPOC          ()                          { return  m_iPOC;           }
+  UInt      getPPSId        ()                          { return  m_uiPPSId;            }
   Int       getSliceQp      ()                          { return  m_iSliceQp;           }
   Int       getSliceQpDelta ()                          { return  m_iSliceQpDelta;      }
   Bool      getDRBFlag      ()                          { return  m_bDRBFlag;           }

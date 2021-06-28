@@ -191,7 +191,7 @@ Void TComPattern::initPattern( TComDataCU* pcCU, UInt uiPartDepth, UInt uiAbsPar
     UInt uiNumPartInWidth = ( uiWidth/pcPic->getMinCUWidth() );
     uiOffsetAbove = 1;
     
-    if( uiCurrPicPelX + uiWidth < pcCU->getSlice()->getSPS()->getWidth() )
+    if( uiCurrPicPelX + uiWidth < pcCU->getSlice()->getPPS()->getPictureWidth() )
     {
       if( ( g_auiZscanToRaster[uiAbsZorderIdx] + uiNumPartInWidth ) % pcPic->getNumPartInWidth() ) // Not CU boundary
       {

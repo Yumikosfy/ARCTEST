@@ -83,7 +83,8 @@ Void TComPrediction::initTempBuff()
 
 #if LM_CHROMA                      
   m_iLumaRecStride =  (g_uiMaxCUWidth>>1) + 1;
-  m_pLumaRecBuffer = new Pel[ m_iLumaRecStride * m_iLumaRecStride ];
+  if (m_pLumaRecBuffer==NULL)
+    m_pLumaRecBuffer = new Pel[ m_iLumaRecStride * m_iLumaRecStride ];
 
   for( Int i = 1; i < 66; i++ )
     m_uiaShift[i-1] = ( (1 << 15) + i/2 ) / i;
@@ -402,33 +403,35 @@ Void TComPrediction::xPredInterUni ( TComDataCU* pcCU, UInt uiPartAddr, Int iWid
 Void TComPrediction::xPredInterUni ( TComDataCU* pcCU, UInt uiPartAddr, Int iWidth, Int iHeight, RefPicList eRefPicList, TComYuv*& rpcYuvPred, Int iPartIdx )
 #endif
 {
+  const Int iPicSizeIdx = pcCU->getPic()->getPictureSizeIdx();
+
   Int         iRefIdx     = pcCU->getCUMvField( eRefPicList )->getRefIdx( uiPartAddr );           assert (iRefIdx >= 0);
   TComMv      cMv         = pcCU->getCUMvField( eRefPicList )->getMv( uiPartAddr );
   pcCU->clipMv(cMv);
 #if HIGH_ACCURACY_BI
   if(!bi)
   {
-    xPredInterLumaBlk ( pcCU, pcCU->getSlice()->getRefPic( eRefPicList, iRefIdx )->getPicYuvRec()    , uiPartAddr, &cMv, iWidth, iHeight, rpcYuvPred );
+    xPredInterLumaBlk ( pcCU, pcCU->getSlice()->getRefPic( eRefPicList, iRefIdx )->getPicYuvRec(iPicSizeIdx)    , uiPartAddr, &cMv, iWidth, iHeight, rpcYuvPred );
   }
   else
   {
-    xPredInterLumaBlk_ha  ( pcCU, pcCU->getSlice()->getRefPic( eRefPicList, iRefIdx )->getPicYuvRec()    , uiPartAddr, &cMv, iWidth, iHeight, rpcYuvPred );
+    xPredInterLumaBlk_ha  ( pcCU, pcCU->getSlice()->getRefPic( eRefPicList, iRefIdx )->getPicYuvRec(iPicSizeIdx)    , uiPartAddr, &cMv, iWidth, iHeight, rpcYuvPred );
   }
 #else
-  xPredInterLumaBlk       ( pcCU, pcCU->getSlice()->getRefPic( eRefPicList, iRefIdx )->getPicYuvRec(), uiPartAddr, &cMv, iWidth, iHeight, rpcYuvPred );
+  xPredInterLumaBlk       ( pcCU, pcCU->getSlice()->getRefPic( eRefPicList, iRefIdx )->getPicYuvRec(iPicSizeIdx), uiPartAddr, &cMv, iWidth, iHeight, rpcYuvPred );
 #endif
 
 #if HIGH_ACCURACY_BI
   if (!bi)
   {
-    xPredInterChromaBlk     ( pcCU, pcCU->getSlice()->getRefPic( eRefPicList, iRefIdx )->getPicYuvRec(), uiPartAddr, &cMv, iWidth, iHeight, rpcYuvPred );
+    xPredInterChromaBlk     ( pcCU, pcCU->getSlice()->getRefPic( eRefPicList, iRefIdx )->getPicYuvRec(iPicSizeIdx), uiPartAddr, &cMv, iWidth, iHeight, rpcYuvPred );
   }
   else
   {
-    xPredInterChromaBlk_ha ( pcCU, pcCU->getSlice()->getRefPic( eRefPicList, iRefIdx )->getPicYuvRec()    , uiPartAddr, &cMv, iWidth, iHeight, rpcYuvPred );
+    xPredInterChromaBlk_ha ( pcCU, pcCU->getSlice()->getRefPic( eRefPicList, iRefIdx )->getPicYuvRec(iPicSizeIdx)    , uiPartAddr, &cMv, iWidth, iHeight, rpcYuvPred );
   }
 #else
-  xPredInterChromaBlk     ( pcCU, pcCU->getSlice()->getRefPic( eRefPicList, iRefIdx )->getPicYuvRec(), uiPartAddr, &cMv, iWidth, iHeight, rpcYuvPred );
+  xPredInterChromaBlk     ( pcCU, pcCU->getSlice()->getRefPic( eRefPicList, iRefIdx )->getPicYuvRec(iPicSizeIdx), uiPartAddr, &cMv, iWidth, iHeight, rpcYuvPred );
 #endif
 }
 

@@ -77,6 +77,13 @@ Void TDecTop::create()
 
 Void TDecTop::destroy()
 {
+  for (size_t i=0; i<m_cSPS.size(); ++i){
+    delete m_cSPS[i];
+  }
+  for (size_t i=0; i<m_cPPS.size(); ++i){
+    delete m_cPPS[i];
+  }
+
   m_cGopDecoder.destroy();
   
   delete m_apcSlicePilot;
@@ -89,10 +96,15 @@ Void TDecTop::init()
 {
   // initialize ROM
   initROM();
+
+  for (int j=0; j<NUM_PIC_RESOLUTIONS; ++j){
+    m_cSAO[j] = NULL;
+  }
+
 #if MTK_SAO
-  m_cGopDecoder.  init( &m_cEntropyDecoder, &m_cSbacDecoder, &m_cBinCABAC, &m_cCavlcDecoder, &m_cSliceDecoder, &m_cLoopFilter, &m_cAdaptiveLoopFilter, &m_cSAO);
+  m_cGopDecoder.  init( &m_cEntropyDecoder, &m_cSbacDecoder, &m_cBinCABAC, &m_cCavlcDecoder, &m_cSliceDecoder, &m_cLoopFilter, &m_cAdaptiveLoopFilter[0], &m_cSAO[0]);
 #else
-  m_cGopDecoder.  init( &m_cEntropyDecoder, &m_cSbacDecoder, &m_cBinCABAC, &m_cCavlcDecoder, &m_cSliceDecoder, &m_cLoopFilter, &m_cAdaptiveLoopFilter );
+  m_cGopDecoder.  init( &m_cEntropyDecoder, &m_cSbacDecoder, &m_cBinCABAC, &m_cCavlcDecoder, &m_cSliceDecoder, &m_cLoopFilter, &m_cAdaptiveLoopFilter[0] );
 #endif
   m_cSliceDecoder.init( &m_cEntropyDecoder, &m_cCuDecoder );
   m_cEntropyDecoder.init(&m_cPrediction);
@@ -113,10 +125,17 @@ Void TDecTop::deletePicBuffer ( )
   }
   
   // destroy ALF temporary buffers
-  m_cAdaptiveLoopFilter.destroy();
+  for (int j=0; j<NUM_PIC_RESOLUTIONS; ++j){
+    m_cAdaptiveLoopFilter[j].destroy();
+  }
 
 #if MTK_SAO
-  m_cSAO.destroy();
+  for (int j=0; j<NUM_PIC_RESOLUTIONS; ++j){
+    if (m_cSAO[j] != NULL ){
+      m_cSAO[j]->destroy();
+      delete m_cSAO[j];
+    }
+  }
 #endif
   
   m_cLoopFilter.        destroy();
@@ -145,8 +164,7 @@ Void TDecTop::xGetNewPicBuffer ( TComSlice* pcSlice, TComPic*& rpcPic )
   if (m_cListPic.size() < (UInt)m_iMaxRefPicNum)
   {
     rpcPic = new TComPic();
-    
-    rpcPic->create ( pcSlice->getSPS()->getWidth(), pcSlice->getSPS()->getHeight(), g_uiMaxCUWidth, g_uiMaxCUHeight, g_uiMaxCUDepth, true);
+    rpcPic->create ( pcSlice->getSPS()->getNominalWidth(), pcSlice->getSPS()->getNominalHeight(), g_uiMaxCUWidth, g_uiMaxCUHeight, g_uiMaxCUDepth, 0, true);
     m_cListPic.pushBack( rpcPic );
     
     return;
@@ -171,16 +189,17 @@ Void TDecTop::xGetNewPicBuffer ( TComSlice* pcSlice, TComPic*& rpcPic )
       break;
     }
   }
-  
+
   if ( !bBufferIsAvailable )
   {
     pcSlice->sortPicList(m_cListPic);
     iterPic = m_cListPic.begin();
     rpcPic = *(iterPic);
+    rpcPic->destroy();
+    rpcPic->create ( pcSlice->getSPS()->getNominalWidth(), pcSlice->getSPS()->getNominalHeight(), g_uiMaxCUWidth, g_uiMaxCUHeight, g_uiMaxCUDepth, 0, true);
     rpcPic->setReconMark(false);
-    
-    // mark it should be extended
-    rpcPic->getPicYuvRec()->setBorderExtension(false);
+  } else {
+    rpcPic->resetRecData();
   }
 }
 
@@ -200,8 +219,8 @@ Void TDecTop::executeDeblockAndAlf(UInt& ruiPOC, TComList<TComPic*>*& rpcListPic
 
   TComSlice::sortPicList( m_cListPic ); // sorting for application output
   ruiPOC              = pcPic->getSlice(m_uiSliceIdx-1)->getPOC();
-  rpcListPic          = &m_cListPic;  
-  m_cCuDecoder.destroy();        
+  rpcListPic          = &m_cListPic;
+  m_cCuDecoder.destroy();
   m_bFirstSliceInPicture  = true;
 
   return;
@@ -210,7 +229,6 @@ Void TDecTop::executeDeblockAndAlf(UInt& ruiPOC, TComList<TComPic*>*& rpcListPic
 Bool TDecTop::decode(InputNALUnit& nalu, Int& iSkipFrame, Int& iPOCLastDisplay)
 {
   TComPic*&   pcPic         = m_pcPic;
-  
   // Initialize entropy decoder
   m_cEntropyDecoder.setEntropyDecoder (&m_cCavlcDecoder);
   m_cEntropyDecoder.setBitstream      (nalu.m_Bitstream);
@@ -218,34 +236,61 @@ Bool TDecTop::decode(InputNALUnit& nalu, Int& iSkipFrame, Int& iPOCLastDisplay)
   switch (nalu.m_UnitType)
   {
     case NAL_UNIT_SPS:
-      m_cEntropyDecoder.decodeSPS( &m_cSPS );
-      
+    {
+      TComSPS* pNewSPS = new TComSPS();
+      m_cEntropyDecoder.decodeSPS( pNewSPS );
       // create ALF temporary buffer
-      m_cAdaptiveLoopFilter.create( m_cSPS.getWidth(), m_cSPS.getHeight(), g_uiMaxCUWidth, g_uiMaxCUHeight, g_uiMaxCUDepth );
-#if MTK_SAO
-      m_cSAO.create( m_cSPS.getWidth(), m_cSPS.getHeight(), g_uiMaxCUWidth, g_uiMaxCUHeight, g_uiMaxCUDepth );
-#endif
+      bool bRecSPSBefore = false;
+      for (size_t s=0; s<m_cSPS.size(); ++s){
+        if (pNewSPS->getSPSId() == m_cSPS[s]->getSPSId()){
+	  bRecSPSBefore = true;
+	  break;
+	}
+      }
+      if (!bRecSPSBefore){
+        m_cSPS.push_back( pNewSPS );
+      }
       m_cLoopFilter.        create( g_uiMaxCUDepth );
       m_uiValidPS |= 1;
       
       return false;
-
+    }
     case NAL_UNIT_PPS:
-#if SUB_LCU_DQP
-      m_cPPS.setSPS(&m_cSPS);
+    {
+      TComPPS* pNewPPS = new TComPPS();
+      m_cEntropyDecoder.decodePPS( pNewPPS , m_cSPS );
+      bool bRecPPSBefore = false;
+      for (size_t p=0; p<m_cPPS.size(); ++p){
+        if (pNewPPS->getPPSId() == m_cPPS[p]->getPPSId()){
+	  bRecPPSBefore = true;
+	  break;
+	}
+      }
+      if (!bRecPPSBefore){
+        m_cPPS.push_back( pNewPPS );
+      }
+
+      Int iPicSizeIdx = m_cPPS[m_cPPS.size()-1]->getPictureSizeIdx();
+      m_cAdaptiveLoopFilter[iPicSizeIdx].create( m_cPPS[m_cPPS.size()-1]->getPictureWidth(), m_cPPS[m_cPPS.size()-1]->getPictureHeight(), g_uiMaxCUWidth, g_uiMaxCUHeight, g_uiMaxCUDepth );
+#if MTK_SAO
+      if (m_cSAO[iPicSizeIdx]==NULL){
+        m_cSAO[iPicSizeIdx] = new TComSampleAdaptiveOffset;
+        m_cSAO[iPicSizeIdx]->create( m_cPPS[m_cPPS.size()-1]->getPictureWidth(), m_cPPS[m_cPPS.size()-1]->getPictureHeight(), g_uiMaxCUWidth, g_uiMaxCUHeight, g_uiMaxCUDepth );
+      }
 #endif
-      m_cEntropyDecoder.decodePPS( &m_cPPS );
+
       m_uiValidPS |= 2;
       return false;
-
+    }
     case NAL_UNIT_SEI:
+    {
       m_SEIs = new SEImessages;
       m_cEntropyDecoder.decodeSEI(*m_SEIs);
       return false;
-
-    case NAL_UNIT_CODED_SLICE:
+    }
     case NAL_UNIT_CODED_SLICE_IDR:
     case NAL_UNIT_CODED_SLICE_CDR:
+    case NAL_UNIT_CODED_SLICE:
     {
       // make sure we already received both parameter sets
       assert( 3 == m_uiValidPS );
@@ -258,8 +303,6 @@ Bool TDecTop::decode(InputNALUnit& nalu, Int& iSkipFrame, Int& iPOCLastDisplay)
       m_apcSlicePilot->setSliceIdx(m_uiSliceIdx);
 
       //  Read slice header
-      m_apcSlicePilot->setSPS( &m_cSPS );
-      m_apcSlicePilot->setPPS( &m_cPPS );
       m_apcSlicePilot->setSliceIdx(m_uiSliceIdx);
       if (!m_bFirstSliceInPicture)
       {
@@ -269,8 +312,7 @@ Bool TDecTop::decode(InputNALUnit& nalu, Int& iSkipFrame, Int& iPOCLastDisplay)
 #if DCM_DECODING_REFRESH
       m_apcSlicePilot->setNalUnitType(nalu.m_UnitType);
 #endif
-      m_cEntropyDecoder.decodeSliceHeader (m_apcSlicePilot);
-
+      m_cEntropyDecoder.decodeSliceHeader (m_apcSlicePilot, m_cPPS);
       m_apcSlicePilot->setTLayerInfo(nalu.m_TemporalID);
 
       if (m_apcSlicePilot->isNextSlice() && m_apcSlicePilot->getPOC()!=m_uiPrevPOC && !m_bFirstSliceInSequence)
@@ -296,23 +338,26 @@ Bool TDecTop::decode(InputNALUnit& nalu, Int& iSkipFrame, Int& iPOCLastDisplay)
         m_cPrediction.initTempBuff();
         //  Get a new picture buffer
         xGetNewPicBuffer (m_apcSlicePilot, pcPic);
-        
-        /* transfer any SEI messages that have been received to the picture */
-        pcPic->setSEIs(m_SEIs);
-        m_SEIs = NULL;
 
         // Recursive structure
         m_cCuDecoder.create ( g_uiMaxCUDepth, g_uiMaxCUWidth, g_uiMaxCUHeight );
         m_cCuDecoder.init   ( &m_cEntropyDecoder, &m_cTrQuant, &m_cPrediction );
         m_cTrQuant.init     ( g_uiMaxCUWidth, g_uiMaxCUHeight, m_apcSlicePilot->getSPS()->getMaxTrSize());
         
-        m_cSliceDecoder.create( m_apcSlicePilot, m_apcSlicePilot->getSPS()->getWidth(), m_apcSlicePilot->getSPS()->getHeight(), g_uiMaxCUWidth, g_uiMaxCUHeight, g_uiMaxCUDepth );
+        m_cSliceDecoder.create( m_apcSlicePilot, m_apcSlicePilot->getPPS()->getPictureWidth(), m_apcSlicePilot->getPPS()->getPictureHeight(), g_uiMaxCUWidth, g_uiMaxCUHeight, g_uiMaxCUDepth );
+
+	pcPic->setPictureSizeIdx( m_apcSlicePilot->getPPS()->getPictureSizeIdx() );
+        
+        /* transfer any SEI messages that have been received to the picture */
+        pcPic->setSEIs(m_SEIs);
+        m_SEIs = NULL;
+
       }
 
       //  Set picture slice pointer
       TComSlice*  pcSlice = m_apcSlicePilot;
       Bool bNextSlice     = pcSlice->isNextSlice();
-      if (m_bFirstSliceInPicture) 
+      if (m_bFirstSliceInPicture)
       {
         if(pcPic->getNumAllocatedSlice() != 1)
         {
@@ -324,7 +369,7 @@ Bool TDecTop::decode(InputNALUnit& nalu, Int& iSkipFrame, Int& iPOCLastDisplay)
         pcPic->allocateNewSlice();
       }
       assert(pcPic->getNumAllocatedSlice() == (m_uiSliceIdx + 1));
-      m_apcSlicePilot = pcPic->getPicSym()->getSlice(m_uiSliceIdx); 
+      m_apcSlicePilot = pcPic->getPicSym()->getSlice(m_uiSliceIdx);
       pcPic->getPicSym()->setSlice(pcSlice, m_uiSliceIdx);
 
       pcPic->setTLayer(nalu.m_TemporalID);
@@ -340,7 +385,7 @@ Bool TDecTop::decode(InputNALUnit& nalu, Int& iSkipFrame, Int& iPOCLastDisplay)
         pcSlice->setRefPicList( m_cListPic );
         
         // HierP + GPB case
-        if ( m_cSPS.getUseLDC() && pcSlice->isInterB() )
+        if ( m_cSPS[m_cSPS.size()-1]->getUseLDC() && pcSlice->isInterB() )
         {
 #if DCM_COMB_LIST
           if(pcSlice->getRefPicListCombinationFlag() && (pcSlice->getNumRefIdx(REF_PIC_LIST_0) > pcSlice->getNumRefIdx(REF_PIC_LIST_1)))

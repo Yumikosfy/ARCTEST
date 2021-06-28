@@ -54,19 +54,23 @@ class SEImessages;
 class TComPic
 {
 private:
+  Int                   m_iWidth[NUM_PIC_RESOLUTIONS];
+  Int                   m_iHeight[NUM_PIC_RESOLUTIONS];
+  UInt                  m_uiMaxWidth;
+  UInt                  m_uiMaxHeight;
+  UInt                  m_uiMaxDepth;
   UInt                  m_uiTLayer;               //  Temporal layer
 
-  TComPicSym*           m_apcPicSym;              //  Symbol
-  
-  TComPicYuv*           m_apcPicYuv[2];           //  Texture,  0:org / 1:rec
-  
-  TComPicYuv*           m_pcPicYuvPred;           //  Prediction
-  TComPicYuv*           m_pcPicYuvResi;           //  Residual
+  TComPicSym*           m_apcPicSym[NUM_PIC_RESOLUTIONS];              //  Symbol
+  TComPicYuv*           m_apcPicYuv[NUM_PIC_RESOLUTIONS][2];           //  Texture,  0:org / 1:rec
+  TComPicYuv*           m_pcPicYuvPred[NUM_PIC_RESOLUTIONS];           //  Prediction
+  TComPicYuv*           m_pcPicYuvResi[NUM_PIC_RESOLUTIONS];           //  Residual
 #if PARALLEL_MERGED_DEBLK
-  TComPicYuv*           m_pcPicYuvDeblkBuf;
+  TComPicYuv*           m_pcPicYuvDeblkBuf[NUM_PIC_RESOLUTIONS];
 #endif
   Bool                  m_bReconstructed;
   UInt                  m_uiCurrSliceIdx;         // Index of current slice
+  Int                   m_iPicSizeIndex;
   
   SEImessages* m_SEIs; ///< Any SEI messages that have been received.  If !NULL we own the object.
 
@@ -74,56 +78,90 @@ public:
   TComPic();
   virtual ~TComPic();
   
-  Void          create( Int iWidth, Int iHeight, UInt uiMaxWidth, UInt uiMaxHeight, UInt uiMaxDepth, Bool bIsVirtual = false );
+  Void          create( Int iWidth, Int iHeight, UInt uiMaxWidth, UInt uiMaxHeight, UInt uiMaxDepth, Int iPicSizeIndex = 0, Bool bIsVirtual = false );
   Void          destroy();
   
   UInt          getTLayer()                { return m_uiTLayer;   }
   Void          setTLayer( UInt uiTLayer ) { m_uiTLayer = uiTLayer; }
+#if JCT_ARC
+  Int           getPictureSizeIdx()     { return m_iPicSizeIndex; }
+  Void          setPictureSizeIdx(Int i);
+#endif
 
-  TComPicSym*   getPicSym()           { return  m_apcPicSym;    }
-  TComSlice*    getSlice(Int i)       { return  m_apcPicSym->getSlice(i);  }
-  Int           getPOC()              { return  m_apcPicSym->getSlice(m_uiCurrSliceIdx)->getPOC();  }
-  Bool          getDRBFlag()          { return  m_apcPicSym->getSlice(m_uiCurrSliceIdx)->getDRBFlag();  }
-  Int           getERBIndex()         { return  m_apcPicSym->getSlice(m_uiCurrSliceIdx)->getERBIndex();  }
-  TComDataCU*&  getCU( UInt uiCUAddr )  { return  m_apcPicSym->getCU( uiCUAddr ); }
+  Int           getWidth()            { return m_iWidth[m_iPicSizeIndex]; }
+  Int           getWidth(Int i)       { return m_iWidth[i]; }
+  Int           getHeight()           { return m_iHeight[m_iPicSizeIndex]; }
+  Int           getHeight(Int i)      { return m_iHeight[i]; }
+
+  TComPicSym*   getPicSym()           { return  m_apcPicSym[m_iPicSizeIndex];    }
+  TComPicSym*   getPicSym(Int i)      { return  m_apcPicSym[i];    }
+  TComSlice*    getSlice(Int s)       { return  m_apcPicSym[m_iPicSizeIndex]->getSlice(s);  }
+  TComSlice*    getSlice(Int s, Int i){ return  m_apcPicSym[i]->getSlice(s);  }
+  Int           getPOC()              { return  m_apcPicSym[m_iPicSizeIndex]->getSlice(m_uiCurrSliceIdx)->getPOC();  }
+  Bool          getDRBFlag()          { return  m_apcPicSym[m_iPicSizeIndex]->getSlice(m_uiCurrSliceIdx)->getDRBFlag();  }
+  Int           getERBIndex()         { return  m_apcPicSym[m_iPicSizeIndex]->getSlice(m_uiCurrSliceIdx)->getERBIndex();  }
+  TComDataCU*&  getCU( UInt uiCUAddr )  { return  m_apcPicSym[m_iPicSizeIndex]->getCU( uiCUAddr ); }
+  TComDataCU*&  getCU( UInt uiCUAddr, Int i )  { return  m_apcPicSym[i]->getCU( uiCUAddr ); }
   
-  TComPicYuv*   getPicYuvOrg()        { return  m_apcPicYuv[0]; }
-  TComPicYuv*   getPicYuvRec()        { return  m_apcPicYuv[1]; }
+  TComPicYuv*   getPicYuvOrg(Int i);
+  TComPicYuv*   getPicYuvOrg()        { return  this->getPicYuvOrg(m_iPicSizeIndex); }
+  TComPicYuv*   getPicYuvRec(Int i);
+  TComPicYuv*   getPicYuvRec()        { return  this->getPicYuvRec(m_iPicSizeIndex); }
   
-  TComPicYuv*   getPicYuvPred()       { return  m_pcPicYuvPred; }
-  TComPicYuv*   getPicYuvResi()       { return  m_pcPicYuvResi; }
-  Void          setPicYuvPred( TComPicYuv* pcPicYuv )       { m_pcPicYuvPred = pcPicYuv; }
-  Void          setPicYuvResi( TComPicYuv* pcPicYuv )       { m_pcPicYuvResi = pcPicYuv; }
+  TComPicYuv*   getPicYuvPred(Int i)  { return  m_pcPicYuvPred[i]; }
+  TComPicYuv*   getPicYuvPred()       { return  m_pcPicYuvPred[m_iPicSizeIndex]; }
+  TComPicYuv*   getPicYuvResi(Int i)  { return  m_pcPicYuvResi[i]; }
+  TComPicYuv*   getPicYuvResi()       { return  m_pcPicYuvResi[m_iPicSizeIndex]; }
+  Void          setPicYuvPred( TComPicYuv* pcPicYuv )       { m_pcPicYuvPred[m_iPicSizeIndex] = pcPicYuv; }
+  Void          setPicYuvPred( TComPicYuv* pcPicYuv, Int i ){ m_pcPicYuvPred[i] = pcPicYuv; }
+  Void          setPicYuvResi( TComPicYuv* pcPicYuv )       { m_pcPicYuvResi[m_iPicSizeIndex] = pcPicYuv; }
+  Void          setPicYuvResi( TComPicYuv* pcPicYuv, Int i ){ m_pcPicYuvResi[i] = pcPicYuv; }
   
-  UInt          getNumCUsInFrame()      { return m_apcPicSym->getNumberOfCUsInFrame(); }
-  UInt          getNumPartInWidth()     { return m_apcPicSym->getNumPartInWidth();     }
-  UInt          getNumPartInHeight()    { return m_apcPicSym->getNumPartInHeight();    }
-  UInt          getNumPartInCU()        { return m_apcPicSym->getNumPartition();       }
-  UInt          getFrameWidthInCU()     { return m_apcPicSym->getFrameWidthInCU();     }
-  UInt          getFrameHeightInCU()    { return m_apcPicSym->getFrameHeightInCU();    }
-  UInt          getMinCUWidth()         { return m_apcPicSym->getMinCUWidth();         }
-  UInt          getMinCUHeight()        { return m_apcPicSym->getMinCUHeight();        }
+  UInt          getNumCUsInFrame()       { return m_apcPicSym[m_iPicSizeIndex]->getNumberOfCUsInFrame(); }
+  UInt          getNumCUsInFrame(Int i)  { return m_apcPicSym[i]->getNumberOfCUsInFrame(); }
+  UInt          getNumPartInWidth()      { return m_apcPicSym[m_iPicSizeIndex]->getNumPartInWidth();     }
+  UInt          getNumPartInWidth(Int i) { return m_apcPicSym[i]->getNumPartInWidth();     }
+  UInt          getNumPartInHeight()     { return m_apcPicSym[m_iPicSizeIndex]->getNumPartInHeight();    }
+  UInt          getNumPartInHeight(Int i){ return m_apcPicSym[i]->getNumPartInHeight();    }
+  UInt          getNumPartInCU()         { return m_apcPicSym[m_iPicSizeIndex]->getNumPartition();       }
+  UInt          getNumPartInCU(Int i)    { return m_apcPicSym[i]->getNumPartition();       }
+  UInt          getFrameWidthInCU()      { return m_apcPicSym[m_iPicSizeIndex]->getFrameWidthInCU();     }
+  UInt          getFrameWidthInCU(Int i) { return m_apcPicSym[i]->getFrameWidthInCU();     }
+  UInt          getFrameHeightInCU()     { return m_apcPicSym[m_iPicSizeIndex]->getFrameHeightInCU();    }
+  UInt          getFrameHeightInCU(Int i){ return m_apcPicSym[i]->getFrameHeightInCU();    }
+  UInt          getMinCUWidth()          { return m_apcPicSym[m_iPicSizeIndex]->getMinCUWidth();         }
+  UInt          getMinCUHeight()         { return m_apcPicSym[m_iPicSizeIndex]->getMinCUHeight();        }
   
   UInt          getParPelX(UChar uhPartIdx) { return getParPelX(uhPartIdx); }
   UInt          getParPelY(UChar uhPartIdx) { return getParPelX(uhPartIdx); }
   
-  Int           getStride()           { return m_apcPicYuv[1]->getStride(); }
-  Int           getCStride()          { return m_apcPicYuv[1]->getCStride(); }
+  Int           getStride()           { return m_apcPicYuv[m_iPicSizeIndex][1]->getStride(); }
+  Int           getStride(Int i)      { return m_apcPicYuv[i][1]->getStride(); }
+  Int           getCStride()          { return m_apcPicYuv[m_iPicSizeIndex][1]->getCStride(); }
+  Int           getCStride(Int i)     { return m_apcPicYuv[i][1]->getCStride(); }
   
   Void          setReconMark (Bool b) { m_bReconstructed = b;     }
   Bool          getReconMark ()       { return m_bReconstructed;  }
-  
+
+  Void          resetRecData();
+
+  Void          setPOC(Int p)         { for (int i=0; i<NUM_PIC_RESOLUTIONS; ++i) { m_apcPicSym[i]->getSlice(0)->setPOC(p); } }
+
 #if AMVP_BUFFERCOMPRESS
   Void          compressMotion(); 
 #endif 
   UInt          getCurrSliceIdx()            { return m_uiCurrSliceIdx;                }
   Void          setCurrSliceIdx(UInt i)      { m_uiCurrSliceIdx = i;                   }
-  UInt          getNumAllocatedSlice()       {return m_apcPicSym->getNumAllocatedSlice();}
-  Void          allocateNewSlice()           {m_apcPicSym->allocateNewSlice();         }
-  Void          clearSliceBuffer()           {m_apcPicSym->clearSliceBuffer();         }
+  UInt          getNumAllocatedSlice()       {return m_apcPicSym[m_iPicSizeIndex]->getNumAllocatedSlice();}
+  UInt          getNumAllocatedSlice(Int i)  {return m_apcPicSym[i]->getNumAllocatedSlice();}
+  Void          allocateNewSlice()           {m_apcPicSym[m_iPicSizeIndex]->allocateNewSlice();         }
+  Void          allocateNewSlice(Int i)      {m_apcPicSym[i]->allocateNewSlice();         }
+  Void          clearSliceBuffer()           {m_apcPicSym[m_iPicSizeIndex]->clearSliceBuffer();         }
+  Void          clearSliceBuffer(Int i)      {m_apcPicSym[i]->clearSliceBuffer();         }
   
 #if PARALLEL_MERGED_DEBLK
-  TComPicYuv*   getPicYuvDeblkBuf()      { return  m_pcPicYuvDeblkBuf; }
+  TComPicYuv*   getPicYuvDeblkBuf();
+  TComPicYuv*   getPicYuvDeblkBuf(Int i);
 #endif
 
   /** transfer ownership of @seis to @this picture */

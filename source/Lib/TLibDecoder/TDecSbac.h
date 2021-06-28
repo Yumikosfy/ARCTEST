@@ -73,9 +73,9 @@ public:
   Void  setMaxAlfCtrlDepth        ( UInt uiMaxAlfCtrlDepth ) { m_uiMaxAlfCtrlDepth = uiMaxAlfCtrlDepth; }
   
   Void  parseSPS                  ( TComSPS* pcSPS         ) {}
-  Void  parsePPS                  ( TComPPS* pcPPS         ) {}
+  Void  parsePPS                  (TComPPS* pcPPS, const std::vector<TComSPS*>& cSPSList) {}
   void parseSEI(SEImessages&) {}
-  Void  parseSliceHeader          ( TComSlice*& rpcSlice   ) {}
+  Void  parseSliceHeader          ( TComSlice*& rpcSlice, const std::vector<TComPPS*>& cPPSList ) {}
   Void  parseTerminatingBit       ( UInt& ruiBit );
   Void  parseMVPIdx               ( TComDataCU* pcCU, Int& riMVPIdx, Int iMVPNum, UInt uiAbsPartIdx, UInt uiDepth, RefPicList eRefList );
   

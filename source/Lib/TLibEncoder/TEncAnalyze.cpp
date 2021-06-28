@@ -36,6 +36,7 @@
 */
 
 #include "TEncAnalyze.h"
+#include "../TLibCommon/TypeDef.h"
 
 //////////////////////////////////////////////////////////////////////
 // Construction/Destruction
@@ -45,4 +46,8 @@ TEncAnalyze             m_gcAnalyzeAll;
 TEncAnalyze             m_gcAnalyzeI;
 TEncAnalyze             m_gcAnalyzeP;
 TEncAnalyze             m_gcAnalyzeB;
+TEncAnalyze             m_gcAnalyzeAllMultiRes[NUM_PIC_RESOLUTIONS];
+TEncAnalyze             m_gcAnalyzeIMultiRes[NUM_PIC_RESOLUTIONS];
+TEncAnalyze             m_gcAnalyzePMultiRes[NUM_PIC_RESOLUTIONS];
+TEncAnalyze             m_gcAnalyzeBMultiRes[NUM_PIC_RESOLUTIONS];
 

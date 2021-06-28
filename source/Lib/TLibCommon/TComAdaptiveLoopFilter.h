@@ -192,6 +192,7 @@ protected:
   Int  *ipSwap;
 
 public:
+  TComSampleAdaptiveOffset();
   Void create( UInt uiSourceWidth, UInt uiSourceHeight, UInt uiMaxCUWidth, UInt uiMaxCUHeight, UInt uiMaxCUDepth );
   Void destroy ();
   Void xCreateQAOParts();

@@ -1,7 +1,7 @@
 /* The copyright in this software is being made available under the BSD
  * License, included below. This software may be subject to other third party
  * and contributor rights, including patent rights, and no such rights are
- * granted under this license.  
+ * granted under this license.
  *
  * Copyright (c) 2010-2011, ITU/ISO/IEC
  * All rights reserved.
@@ -60,7 +60,7 @@ TEncGOP::TEncGOP()
   m_iGopSize            = 0;
   m_iNumPicCoded        = 0; //Niko
   m_bFirst              = true;
-  
+
   m_pcCfg               = NULL;
   m_pcSliceEncoder      = NULL;
   m_pcListPic           = NULL;
@@ -77,6 +77,13 @@ TEncGOP::TEncGOP()
   m_uiPOCCDR            = 0;
 #endif
 
+  m_uiStoredStartCUAddrForEncodingSlice = NULL;
+  m_uiStoredStartCUAddrForEncodingEntropySlice = NULL;
+
+  for (int j=0; j<NUM_PIC_RESOLUTIONS; ++j){
+    m_dLevelTime[j] = 0.0;
+  }
+
   return;
 }
 
@@ -92,6 +99,13 @@ Void  TEncGOP::create( Int iWidth, Int iHeight, UInt iMaxCUWidth, UInt iMaxCUHei
   UInt uiWidthInCU       = ( iWidth %iMaxCUWidth  ) ? iWidth /iMaxCUWidth  + 1 : iWidth /iMaxCUWidth;
   UInt uiHeightInCU      = ( iHeight%iMaxCUHeight ) ? iHeight/iMaxCUHeight + 1 : iHeight/iMaxCUHeight;
   UInt uiNumCUsInFrame   = uiWidthInCU * uiHeightInCU;
+
+  if (m_uiStoredStartCUAddrForEncodingSlice!=NULL){
+    delete[] m_uiStoredStartCUAddrForEncodingSlice;
+  }
+  if (m_uiStoredStartCUAddrForEncodingEntropySlice!=NULL){
+    delete[] m_uiStoredStartCUAddrForEncodingEntropySlice;
+  }
   m_uiStoredStartCUAddrForEncodingSlice = new UInt [uiNumCUsInFrame+1];
   m_uiStoredStartCUAddrForEncodingEntropySlice = new UInt [uiNumCUsInFrame+1];
 }
@@ -122,6 +136,11 @@ Void TEncGOP::init ( TEncTop* pcTEncTop )
 #if MTK_SAO
   m_pcSAO                = pcTEncTop->getSAO();
 #endif
+
+  m_bSPSSent = false;
+  for (int j=0 ; j < NUM_PIC_RESOLUTIONS; ++j ){
+    m_bPPSSent[j] = false;
+  }
 
 }
 
@@ -171,14 +190,22 @@ Void TEncGOP::compressGOP( Int iPOCLast, Int iNumPicRcvd, TComList<TComPic*>& rc
       accessUnitsInGOP.push_back(AccessUnit());
       AccessUnit& accessUnit = accessUnitsInGOP.back();
       xGetBuffer( rcListPic, rcListPicYuvRecOut, iNumPicRcvd, iTimeOffset, pcPic, pcPicYuvRecOut, uiPOCCurr );
-      
+
+      const Int iPicSizeIdx = ( uiPOCCurr >= m_pcEncTop->getResSwitchFrameNum() ? ( m_pcEncTop->getResSwitchType()&0x01 ) : ( 1-(m_pcEncTop->getResSwitchType()&0x01) ));
+      pcPic->setPictureSizeIdx(iPicSizeIdx);
+
       //  Slice data initialization
       pcPic->clearSliceBuffer();
       assert(pcPic->getNumAllocatedSlice() == 1);
       m_pcSliceEncoder->setSliceIdx(0);
       pcPic->setCurrSliceIdx(0);
 
-      m_pcSliceEncoder->initEncSlice ( pcPic, iPOCLast, uiPOCCurr, iNumPicRcvd, iTimeOffset, iDepth, pcSlice, m_pcEncTop->getSPS(), m_pcEncTop->getPPS() );
+      if (m_pcEncTop->getResSwitchType() < 2 || uiPOCCurr < m_pcEncTop->getResSwitchFrameNum() ){
+        m_pcSliceEncoder->initEncSlice ( pcPic, iPOCLast, uiPOCCurr, iNumPicRcvd, iTimeOffset, iDepth, pcSlice, m_pcEncTop->getSPS(), m_pcEncTop->getPPS()[iPicSizeIdx] );
+      } else {
+        // Inserting an IDR and restarting prediction structure at m_pcEncTop->getResSwitchFrameNum()
+        m_pcSliceEncoder->initEncSlice ( pcPic, iPOCLast, uiPOCCurr-m_pcEncTop->getResSwitchFrameNum(), iNumPicRcvd, iTimeOffset, iDepth, pcSlice, m_pcEncTop->getSPS(), m_pcEncTop->getPPS()[iPicSizeIdx] );
+      }
       pcSlice->setSliceIdx(0);
 
 #if DCM_DECODING_REFRESH
@@ -395,21 +422,21 @@ Void TEncGOP::compressGOP( Int iPOCLast, Int iNumPicRcvd, TComList<TComPic*>& rc
       {
         if(pcSlice->getSPS()->getLFCrossSliceBoundaryFlag())
         {
-          m_pcAdaptiveLoopFilter->setUseNonCrossAlf(false);
+          m_pcAdaptiveLoopFilter[iPicSizeIdx].setUseNonCrossAlf(false);
         }
         else
         {
           UInt uiNumSlices = uiStartCUAddrSliceIdx-1;
-          m_pcAdaptiveLoopFilter->setUseNonCrossAlf( (uiNumSlices > 1)  );
-          if(m_pcAdaptiveLoopFilter->getUseNonCrossAlf())
+          m_pcAdaptiveLoopFilter[iPicSizeIdx].setUseNonCrossAlf( (uiNumSlices > 1)  );
+          if(m_pcAdaptiveLoopFilter[iPicSizeIdx].getUseNonCrossAlf())
           {
-            m_pcAdaptiveLoopFilter->setNumSlicesInPic( uiNumSlices );
-            m_pcAdaptiveLoopFilter->createSlice();
+            m_pcAdaptiveLoopFilter[iPicSizeIdx].setNumSlicesInPic( uiNumSlices );
+            m_pcAdaptiveLoopFilter[iPicSizeIdx].createSlice();
 
             //set the startLCU and endLCU addr. to ALF slices
             for(UInt i=0; i< uiNumSlices ; i++)
             {
-              (*m_pcAdaptiveLoopFilter)[i].create(pcPic, i, 
+              m_pcAdaptiveLoopFilter[iPicSizeIdx][i].create(pcPic, i, 
                                                   m_uiStoredStartCUAddrForEncodingSlice[i], 
                                                   m_uiStoredStartCUAddrForEncodingSlice[i+1]-1
                                                   );
@@ -424,7 +451,7 @@ Void TEncGOP::compressGOP( Int iPOCLast, Int iNumPicRcvd, TComList<TComPic*>& rc
       m_pcEntropyCoder->setEntropyCoder   ( m_pcCavlcCoder, pcSlice );
 
       /* write various header sets. */
-      if ( m_bSeqFirst )
+      if (m_bSPSSent == false)
       {
         OutputNALUnit nalu(NAL_UNIT_SPS, NAL_REF_IDC_PRIORITY_HIGHEST);
         m_pcEntropyCoder->setBitstream(&nalu.m_Bitstream);
@@ -432,13 +459,18 @@ Void TEncGOP::compressGOP( Int iPOCLast, Int iNumPicRcvd, TComList<TComPic*>& rc
         writeRBSPTrailingBits(nalu.m_Bitstream);
         accessUnit.push_back(new NALUnitEBSP(nalu));
 
-        nalu = NALUnit(NAL_UNIT_PPS, NAL_REF_IDC_PRIORITY_HIGHEST);
+        m_bSPSSent = true;
+      }
+
+      if ( m_bPPSSent[iPicSizeIdx] == false)
+      {
+        OutputNALUnit nalu(NAL_UNIT_PPS, NAL_REF_IDC_PRIORITY_HIGHEST);
         m_pcEntropyCoder->setBitstream(&nalu.m_Bitstream);
         m_pcEntropyCoder->encodePPS(pcSlice->getPPS());
         writeRBSPTrailingBits(nalu.m_Bitstream);
         accessUnit.push_back(new NALUnitEBSP(nalu));
 
-        m_bSeqFirst = false;
+        m_bPPSSent[ iPicSizeIdx ] = true;
       }
 
       /* use the main bitstream buffer for storing the marshalled picture */
@@ -525,13 +557,13 @@ Void TEncGOP::compressGOP( Int iPOCLast, Int iNumPicRcvd, TComList<TComPic*>& rc
         {
           m_pcEntropyCoder->resetEntropy    ();
           m_pcEntropyCoder->setBitstream    ( m_pcBitCounter );
-          m_pcSAO->startSaoEnc(pcPic, m_pcEntropyCoder, m_pcEncTop->getRDSbacCoder(), m_pcCfg->getUseSBACRD() ?  m_pcEncTop->getRDGoOnSbacCoder() : NULL);
-          m_pcSAO->SAOProcess(pcPic->getSlice(0)->getLambda());
-          m_pcSAO->copyQaoData(&cSaoParam);
-          m_pcSAO->endSaoEnc();
+          m_pcSAO[iPicSizeIdx].startSaoEnc(pcPic, m_pcEntropyCoder, m_pcEncTop->getRDSbacCoder(), m_pcCfg->getUseSBACRD() ?  m_pcEncTop->getRDGoOnSbacCoder() : NULL);
+          m_pcSAO[iPicSizeIdx].SAOProcess(pcPic->getSlice(0)->getLambda());
+          m_pcSAO[iPicSizeIdx].copyQaoData(&cSaoParam);
+          m_pcSAO[iPicSizeIdx].endSaoEnc();
 
 #if E057_INTRA_PCM && E192_SPS_PCM_FILTER_DISABLE_SYNTAX
-          m_pcAdaptiveLoopFilter->PCMLFDisableProcess(pcPic);
+          m_pcAdaptiveLoopFilter[iPicSizeIdx].PCMLFDisableProcess(pcPic);
 #endif
         }
 
@@ -546,15 +578,15 @@ Void TEncGOP::compressGOP( Int iPOCLast, Int iNumPicRcvd, TComList<TComPic*>& rc
           m_pcEntropyCoder->resetEntropy    ();
           m_pcEntropyCoder->setBitstream    ( m_pcBitCounter );
 #if TSB_ALF_HEADER
-          m_pcAdaptiveLoopFilter->setNumCUsInFrame(pcPic);
+          m_pcAdaptiveLoopFilter[iPicSizeIdx].setNumCUsInFrame(pcPic);
 #endif
-          m_pcAdaptiveLoopFilter->allocALFParam(&cAlfParam);
-          m_pcAdaptiveLoopFilter->startALFEnc(pcPic, m_pcEntropyCoder );
-          m_pcAdaptiveLoopFilter->ALFProcess( &cAlfParam, pcPic->getSlice(0)->getLambda(), uiDist, uiBits, uiMaxAlfCtrlDepth );
-          m_pcAdaptiveLoopFilter->endALFEnc();
+          m_pcAdaptiveLoopFilter[iPicSizeIdx].allocALFParam(&cAlfParam);
+          m_pcAdaptiveLoopFilter[iPicSizeIdx].startALFEnc(pcPic, m_pcEntropyCoder );
+          m_pcAdaptiveLoopFilter[iPicSizeIdx].ALFProcess( &cAlfParam, pcPic->getSlice(0)->getLambda(), uiDist, uiBits, uiMaxAlfCtrlDepth );
+          m_pcAdaptiveLoopFilter[iPicSizeIdx].endALFEnc();
 
 #if E057_INTRA_PCM && E192_SPS_PCM_FILTER_DISABLE_SYNTAX
-          m_pcAdaptiveLoopFilter->PCMLFDisableProcess(pcPic);
+          m_pcAdaptiveLoopFilter[iPicSizeIdx].PCMLFDisableProcess(pcPic);
 #endif
         }
 
@@ -602,7 +634,7 @@ Void TEncGOP::compressGOP( Int iPOCLast, Int iNumPicRcvd, TComList<TComPic*>& rc
             m_pcEntropyCoder->encodeAlfCtrlParam(&cAlfParam);
           }
 #endif
-          m_pcAdaptiveLoopFilter->freeALFParam(&cAlfParam);
+          m_pcAdaptiveLoopFilter[iPicSizeIdx].freeALFParam(&cAlfParam);
         }
       }
         
@@ -621,8 +653,8 @@ Void TEncGOP::compressGOP( Int iPOCLast, Int iNumPicRcvd, TComList<TComPic*>& rc
 #if MTK_NONCROSS_INLOOP_FILTER
       if(pcSlice->getSPS()->getUseALF())
       {
-        if(m_pcAdaptiveLoopFilter->getUseNonCrossAlf())
-          m_pcAdaptiveLoopFilter->destroySlice();
+        if(m_pcAdaptiveLoopFilter[iPicSizeIdx].getUseNonCrossAlf())
+          m_pcAdaptiveLoopFilter[iPicSizeIdx].destroySlice();
       }
 #endif 
       
@@ -635,6 +667,7 @@ Void TEncGOP::compressGOP( Int iPOCLast, Int iNumPicRcvd, TComList<TComPic*>& rc
 
       //-- For time output for each slice
       Double dEncTime = (double)(clock()-iBeforeTime) / CLOCKS_PER_SEC;
+      m_dLevelTime[pcPic->getPictureSizeIdx()] += dEncTime;
 
       const char* digestStr = NULL;
       if (m_pcCfg->getPictureDigestEnabled())
@@ -658,15 +691,23 @@ Void TEncGOP::compressGOP( Int iPOCLast, Int iNumPicRcvd, TComList<TComPic*>& rc
         accessUnit.insert(it, new NALUnitEBSP(nalu));
       }
 
-      xCalculateAddPSNR( pcPic, pcPic->getPicYuvRec(), accessUnit, dEncTime );
-      if (digestStr)
-        printf(" [MD5:%s]", digestStr);
+      xCalculateAddPSNR( pcPic, accessUnit, dEncTime );
+      if (m_pcCfg->getPictureDigestEnabled())
+      {
+        SEIpictureDigest sei_recon_picture_digest;
+        sei_recon_picture_digest.method = SEIpictureDigest::MD5;
+        if (digestStr)
+          printf(" [MD5:%s]", digestStr);
+
+        digestStr = NULL;
+      }
+
 
 #if FIXED_ROUNDING_FRAME_MEMORY
       /* TODO: this should happen after copyToPic(pcPicYuvRecOut) */
-      pcPic->getPicYuvRec()->xFixedRoundingPic();
+      pcPic->getPicYuvRec(0)->xFixedRoundingPic();
 #endif
-      pcPic->getPicYuvRec()->copyToPic(pcPicYuvRecOut);
+      pcPic->getPicYuvRec(0)->copyToPic(pcPicYuvRecOut);
       
       pcPic->setReconMark   ( true );
       
@@ -696,9 +737,16 @@ Void TEncGOP::printOutSummary(UInt uiNumAllPicCoded)
   m_gcAnalyzeI.setFrmRate( m_pcCfg->getFrameRate() );
   m_gcAnalyzeP.setFrmRate( m_pcCfg->getFrameRate() );
   m_gcAnalyzeB.setFrmRate( m_pcCfg->getFrameRate() );
+
+  for (int j=0; j<NUM_PIC_RESOLUTIONS; ++j){
+    m_gcAnalyzeAllMultiRes[j].setFrmRate( m_pcCfg->getFrameRate() );
+    m_gcAnalyzeIMultiRes[j].setFrmRate( m_pcCfg->getFrameRate() );
+    m_gcAnalyzePMultiRes[j].setFrmRate( m_pcCfg->getFrameRate() );
+    m_gcAnalyzeBMultiRes[j].setFrmRate( m_pcCfg->getFrameRate() );
+  }
   
   //-- all
-  printf( "\n\nSUMMARY --------------------------------------------------------\n" );
+  printf( "\n\nSUMMARY (Computed at top level)---------------------------------\n" );
   m_gcAnalyzeAll.printOut('a');
   
   printf( "\n\nI Slices--------------------------------------------------------\n" );
@@ -719,9 +767,31 @@ Void TEncGOP::printOutSummary(UInt uiNumAllPicCoded)
   m_gcAnalyzeB.printSummary('B');
 #endif
 
+  //-- Each resolution type
+  for (int j=0; j<NUM_PIC_RESOLUTIONS; ++j){
+    printf( "\n\nRESOLUTION %u SUMMARY -------------------------------------------\n",j );
+    m_gcAnalyzeAllMultiRes[j].printOut('a');
+  
+    printf( "\n\nI Slices--------------------------------------------------------\n" );
+    m_gcAnalyzeIMultiRes[j].printOut('i');
+  
+    printf( "\n\nP Slices--------------------------------------------------------\n" );
+    m_gcAnalyzePMultiRes[j].printOut('p');
+  
+    printf( "\n\nB Slices--------------------------------------------------------\n" );
+    m_gcAnalyzeBMultiRes[j].printOut('b');
+  }
+
 #if RVM_VCEGAM10
-  printf("\nRVM: %.3lf\n" , xCalculateRVM());
+  for (int j=0; j<NUM_PIC_RESOLUTIONS; ++j){
+    printf("\nLevel %d RVM: %.3lf" , j, xCalculateRVM(j));
+  }
+  printf("\nCombined RVM: %.3lf\n" , xCalculateRVMTotal());
 #endif
+  for (int j=0; j<NUM_PIC_RESOLUTIONS; ++j){
+    printf("Level %d Time: %.3lf\n" , j, m_dLevelTime[j]);
+  }
+
 }
 
 Void TEncGOP::preLoopFilterPicAll( TComPic* pcPic, UInt64& ruiDist, UInt64& ruiBits )
@@ -740,20 +810,21 @@ Void TEncGOP::preLoopFilterPicAll( TComPic* pcPic, UInt64& ruiDist, UInt64& ruiB
   if( pcSlice->getSPS()->getUseALF() )
   {
     ALFParam cAlfParam;
+    Int iPicSizeIdx = pcSlice->getPPS()->getPictureSizeIdx();
 #if TSB_ALF_HEADER
-    m_pcAdaptiveLoopFilter->setNumCUsInFrame(pcPic);
+    m_pcAdaptiveLoopFilter[iPicSizeIdx].setNumCUsInFrame(pcPic);
 #endif
-    m_pcAdaptiveLoopFilter->allocALFParam(&cAlfParam);
+    m_pcAdaptiveLoopFilter[iPicSizeIdx].allocALFParam(&cAlfParam);
     
-    m_pcAdaptiveLoopFilter->startALFEnc(pcPic, m_pcEntropyCoder);
+    m_pcAdaptiveLoopFilter[iPicSizeIdx].startALFEnc(pcPic, m_pcEntropyCoder);
     
     UInt uiMaxAlfCtrlDepth;
-    m_pcAdaptiveLoopFilter->ALFProcess(&cAlfParam, pcSlice->getLambda(), ruiDist, ruiBits, uiMaxAlfCtrlDepth );
-    m_pcAdaptiveLoopFilter->endALFEnc();
-    m_pcAdaptiveLoopFilter->freeALFParam(&cAlfParam);
+    m_pcAdaptiveLoopFilter[iPicSizeIdx].ALFProcess(&cAlfParam, pcSlice->getLambda(), ruiDist, ruiBits, uiMaxAlfCtrlDepth );
+    m_pcAdaptiveLoopFilter[iPicSizeIdx].endALFEnc();
+    m_pcAdaptiveLoopFilter[iPicSizeIdx].freeALFParam(&cAlfParam);
 
 #if E057_INTRA_PCM && E192_SPS_PCM_FILTER_DISABLE_SYNTAX
-    m_pcAdaptiveLoopFilter->PCMLFDisableProcess(pcPic);
+    m_pcAdaptiveLoopFilter[iPicSizeIdx].PCMLFDisableProcess(pcPic);
 #endif
   }
   
@@ -796,7 +867,9 @@ Void TEncGOP::xInitGOP( Int iPOCLast, Int iNumPicRcvd, TComList<TComPic*>& rcLis
     m_iHrchDepth = 1;
   }
 #if MQT_ALF_NPASS && !MQT_BA_RA
-  m_pcAdaptiveLoopFilter->setGOPSize( m_iGopSize );
+  for (int j=0; j<NUM_PIC_RESOLUTIONS; ++j){
+    m_pcAdaptiveLoopFilter[j].setGOPSize( m_iGopSize );
+  }
 #endif
   return;
 }
@@ -831,7 +904,6 @@ Void TEncGOP::xGetBuffer( TComList<TComPic*>&       rcListPic,
     }
     iterPic++;
   }
-  
   assert (rpcPic->getPOC() == (Int)uiPOCCurr);
   
   return;
@@ -930,78 +1002,80 @@ static const char* nalUnitTypeToString(NalUnitType type)
 }
 #endif
 
-Void TEncGOP::xCalculateAddPSNR( TComPic* pcPic, TComPicYuv* pcPicD, const AccessUnit& accessUnit, Double dEncTime )
+Void TEncGOP::xCalculateAddPSNR( TComPic* pcPic, const AccessUnit& accessUnit, Double dEncTime )
 {
   Int     x, y;
-  UInt64 uiSSDY  = 0;
-  UInt64 uiSSDU  = 0;
-  UInt64 uiSSDV  = 0;
+  UInt64 uiSSDY[NUM_PIC_RESOLUTIONS]  = {0};
+  UInt64 uiSSDU[NUM_PIC_RESOLUTIONS]  = {0};
+  UInt64 uiSSDV[NUM_PIC_RESOLUTIONS]  = {0};
   
-  Double  dYPSNR  = 0.0;
-  Double  dUPSNR  = 0.0;
-  Double  dVPSNR  = 0.0;
+  Double  dYPSNR[NUM_PIC_RESOLUTIONS]  = {0.0};
+  Double  dUPSNR[NUM_PIC_RESOLUTIONS]  = {0.0};
+  Double  dVPSNR[NUM_PIC_RESOLUTIONS]  = {0.0};
   
   //===== calculate PSNR =====
-  Pel*  pOrg    = pcPic ->getPicYuvOrg()->getLumaAddr();
-  Pel*  pRec    = pcPicD->getLumaAddr();
-  Int   iStride = pcPicD->getStride();
+  for (int j=0; j<NUM_PIC_RESOLUTIONS; ++j){
+    Pel*  pOrg    = pcPic ->getPicYuvOrg(j)->getLumaAddr();
+    Pel*  pRec    = pcPic->getPicYuvRec(j)->getLumaAddr();
+    Int   iStride = pcPic->getPicYuvRec(j)->getStride();
   
-  Int   iWidth;
-  Int   iHeight;
+    Int   iWidth;
+    Int   iHeight;
   
-  iWidth  = pcPicD->getWidth () - m_pcEncTop->getPad(0);
-  iHeight = pcPicD->getHeight() - m_pcEncTop->getPad(1);
+    iWidth  = pcPic->getPicYuvRec(j)->getWidth () - (m_pcEncTop->getPad(0) >> j);
+    iHeight = pcPic->getPicYuvRec(j)->getHeight() - (m_pcEncTop->getPad(1) >> j);
   
-  Int   iSize   = iWidth*iHeight;
+    Int   iSize   = iWidth*iHeight;
   
-  for( y = 0; y < iHeight; y++ )
-  {
-    for( x = 0; x < iWidth; x++ )
+    for( y = 0; y < iHeight; y++ )
     {
-      Int iDiff = (Int)( pOrg[x] - pRec[x] );
-      uiSSDY   += iDiff * iDiff;
+      for( x = 0; x < iWidth; x++ )
+      {
+        Int iDiff = (Int)( pOrg[x] - pRec[x] );
+        uiSSDY[j]   += iDiff * iDiff;
+      }
+      pOrg += iStride;
+      pRec += iStride;
     }
-    pOrg += iStride;
-    pRec += iStride;
-  }
   
-  iHeight >>= 1;
-  iWidth  >>= 1;
-  iStride >>= 1;
-  pOrg  = pcPic ->getPicYuvOrg()->getCbAddr();
-  pRec  = pcPicD->getCbAddr();
+    iHeight >>= 1;
+    iWidth  >>= 1;
+    iStride >>= 1;
+    pOrg  = pcPic->getPicYuvOrg(j)->getCbAddr();
+    pRec  = pcPic->getPicYuvRec(j)->getCbAddr();
   
-  for( y = 0; y < iHeight; y++ )
-  {
-    for( x = 0; x < iWidth; x++ )
+    for( y = 0; y < iHeight; y++ )
     {
-      Int iDiff = (Int)( pOrg[x] - pRec[x] );
-      uiSSDU   += iDiff * iDiff;
+      for( x = 0; x < iWidth; x++ )
+      {
+        Int iDiff = (Int)( pOrg[x] - pRec[x] );
+        uiSSDU[j]   += iDiff * iDiff;
+      }
+      pOrg += iStride;
+      pRec += iStride;
     }
-    pOrg += iStride;
-    pRec += iStride;
-  }
   
-  pOrg  = pcPic ->getPicYuvOrg()->getCrAddr();
-  pRec  = pcPicD->getCrAddr();
+    pOrg  = pcPic->getPicYuvOrg(j)->getCrAddr();
+    pRec  = pcPic->getPicYuvRec(j)->getCrAddr();
   
-  for( y = 0; y < iHeight; y++ )
-  {
-    for( x = 0; x < iWidth; x++ )
+    for( y = 0; y < iHeight; y++ )
     {
-      Int iDiff = (Int)( pOrg[x] - pRec[x] );
-      uiSSDV   += iDiff * iDiff;
+      for( x = 0; x < iWidth; x++ )
+      {
+        Int iDiff = (Int)( pOrg[x] - pRec[x] );
+        uiSSDV[j]   += iDiff * iDiff;
+      }
+      pOrg += iStride;
+      pRec += iStride;
     }
-    pOrg += iStride;
-    pRec += iStride;
-  }
   
-  unsigned int maxval = 255 * (1<<(g_uiBitDepth + g_uiBitIncrement -8));
-  Double fRefValueY = (double) maxval * maxval * iSize;
-  Double fRefValueC = fRefValueY / 4.0;
-  dYPSNR            = ( uiSSDY ? 10.0 * log10( fRefValueY / (Double)uiSSDY ) : 99.99 );
-  dUPSNR            = ( uiSSDU ? 10.0 * log10( fRefValueC / (Double)uiSSDU ) : 99.99 );
-  dVPSNR            = ( uiSSDV ? 10.0 * log10( fRefValueC / (Double)uiSSDV ) : 99.99 );
+    unsigned int maxval = 255 * (1<<(g_uiBitDepth + g_uiBitIncrement -8));
+    Double fRefValueY = (double) maxval * maxval * iSize;
+    Double fRefValueC = fRefValueY / 4.0;
+    dYPSNR[j]            = ( uiSSDY[j] ? 10.0 * log10( fRefValueY / (Double)uiSSDY[j] ) : 99.99 );
+    dUPSNR[j]            = ( uiSSDU[j] ? 10.0 * log10( fRefValueC / (Double)uiSSDU[j] ) : 99.99 );
+    dVPSNR[j]            = ( uiSSDV[j] ? 10.0 * log10( fRefValueC / (Double)uiSSDV[j] ) : 99.99 );
+  }
 
   /* calculate the size of the access unit, excluding:
    *  - any AnnexB contributions (start_code_prefix, zero_byte, etc.,)
@@ -1020,33 +1094,41 @@ Void TEncGOP::xCalculateAddPSNR( TComPic* pcPic, TComPicYuv* pcPicD, const Acces
 
   unsigned uibits = numRBSPBytes * 8;
 #if RVM_VCEGAM10
-  m_vRVM_RP.push_back( uibits );
+  m_vRVM_RP[pcPic->getPictureSizeIdx()].push_back( uibits );
+  m_vRVM_RPTotal.push_back( uibits );
 #endif
 
+  Int iPicSizeIdx = pcPic->getPictureSizeIdx();
+
   //===== add PSNR =====
-  m_gcAnalyzeAll.addResult (dYPSNR, dUPSNR, dVPSNR, (Double)uibits);
+  m_gcAnalyzeAll.addResult (dYPSNR[0], dUPSNR[0], dVPSNR[0], (Double)uibits);
+  m_gcAnalyzeAllMultiRes[iPicSizeIdx].addResult (dYPSNR[iPicSizeIdx], dUPSNR[iPicSizeIdx], dVPSNR[iPicSizeIdx], (Double)uibits);
   TComSlice*  pcSlice = pcPic->getSlice(0);
   if (pcSlice->isIntra())
   {
-    m_gcAnalyzeI.addResult (dYPSNR, dUPSNR, dVPSNR, (Double)uibits);
+    m_gcAnalyzeI.addResult (dYPSNR[0], dUPSNR[0], dVPSNR[0], (Double)uibits);
+    m_gcAnalyzeIMultiRes[iPicSizeIdx].addResult (dYPSNR[iPicSizeIdx], dUPSNR[iPicSizeIdx], dVPSNR[iPicSizeIdx], (Double)uibits);
   }
   if (pcSlice->isInterP())
   {
-    m_gcAnalyzeP.addResult (dYPSNR, dUPSNR, dVPSNR, (Double)uibits);
+    m_gcAnalyzeP.addResult (dYPSNR[0], dUPSNR[0], dVPSNR[0], (Double)uibits);
+    m_gcAnalyzePMultiRes[iPicSizeIdx].addResult (dYPSNR[iPicSizeIdx], dUPSNR[iPicSizeIdx], dVPSNR[iPicSizeIdx], (Double)uibits);
   }
   if (pcSlice->isInterB())
   {
-    m_gcAnalyzeB.addResult (dYPSNR, dUPSNR, dVPSNR, (Double)uibits);
+    m_gcAnalyzeB.addResult (dYPSNR[0], dUPSNR[0], dVPSNR[0], (Double)uibits);
+    m_gcAnalyzeBMultiRes[iPicSizeIdx].addResult (dYPSNR[iPicSizeIdx], dUPSNR[iPicSizeIdx], dVPSNR[iPicSizeIdx], (Double)uibits);
   }
 
-  printf("POC %4d TId: %1d ( %c-SLICE, QP %d ) %10d bits",
+  printf("POC %4d RIdx %1u TId: %1d ( %c-SLICE, QP %d ) %10d bits",
          pcSlice->getPOC(),
+	 pcSlice->getPPS()->getPictureSizeIdx(),
          pcSlice->getTLayer(),
          pcSlice->isIntra() ? 'I' : pcSlice->isInterP() ? 'P' : 'B',
          pcSlice->getSliceQp(),
          uibits );
 
-  printf(" [Y %6.4lf dB    U %6.4lf dB    V %6.4lf dB]", dYPSNR, dUPSNR, dVPSNR );
+  printf(" [Y %6.4lf dB    U %6.4lf dB    V %6.4lf dB]", dYPSNR[0], dUPSNR[0], dVPSNR[0] );
   printf(" [ET %5.0f ]", dEncTime );
   
   for (Int iRefList = 0; iRefList < 2; iRefList++)
@@ -1079,27 +1161,31 @@ Void TEncGOP::xCalculateAddPSNR( TComPic* pcPic, TComPicYuv* pcPicD, const Acces
  */
 NalUnitType TEncGOP::getNalUnitType(UInt uiPOCCurr)
 {
+  NalUnitType cType = NAL_UNIT_CODED_SLICE;
   if (uiPOCCurr == 0)
   {
-    return NAL_UNIT_CODED_SLICE_IDR;
+    cType = NAL_UNIT_CODED_SLICE_IDR;
   }
   if (uiPOCCurr % m_pcCfg->getIntraPeriod() == 0)
   {
     if (m_pcCfg->getDecodingRefreshType() == 1)
     {
-      return NAL_UNIT_CODED_SLICE_CDR;
+      cType = NAL_UNIT_CODED_SLICE_CDR;
     }
     else if (m_pcCfg->getDecodingRefreshType() == 2)
     {
-      return NAL_UNIT_CODED_SLICE_IDR;
+      cType = NAL_UNIT_CODED_SLICE_IDR;
     }
   }
-  return NAL_UNIT_CODED_SLICE;
+  if (m_pcEncTop->getResSwitchType() >= 2 && uiPOCCurr == m_pcEncTop->getResSwitchFrameNum() ){
+    cType = NAL_UNIT_CODED_SLICE_IDR;
+  }
+  return cType;
 }
 #endif
 
 #if RVM_VCEGAM10
-Double TEncGOP::xCalculateRVM()
+Double TEncGOP::xCalculateRVMTotal()
 {
   Double dRVM = 0;
   
@@ -1107,7 +1193,7 @@ Double TEncGOP::xCalculateRVM()
   {
     // calculate RVM only for lowdelay configurations
     std::vector<Double> vRL , vB;
-    size_t N = m_vRVM_RP.size();
+    size_t N = m_vRVM_RPTotal.size();
     vRL.resize( N );
     vB.resize( N );
     
@@ -1118,10 +1204,10 @@ Double TEncGOP::xCalculateRVM()
     {
       vRL[i] = 0;
       for( Int j = i - RVM_VCEGAM10_M ; j <= i + RVM_VCEGAM10_M - 1 ; j++ )
-        vRL[i] += m_vRVM_RP[j];
+        vRL[i] += m_vRVM_RPTotal[j];
       vRL[i] /= ( 2 * RVM_VCEGAM10_M );
-      vB[i] = vB[i-1] + m_vRVM_RP[i] - vRL[i];
-      dRavg += m_vRVM_RP[i];
+      vB[i] = vB[i-1] + m_vRVM_RPTotal[i] - vRL[i];
+      dRavg += m_vRVM_RPTotal[i];
       dBavg += vB[i];
     }
     
@@ -1139,6 +1225,54 @@ Double TEncGOP::xCalculateRVM()
     double f = sqrt( 12.0 * ( RVM_VCEGAM10_M - 1 ) / ( RVM_VCEGAM10_M + 1 ) );
     
     dRVM = dSigamB / dRavg * f;
+  }
+  
+  return( dRVM );
+}
+
+Double TEncGOP::xCalculateRVM(Int iPicSizeIdx)
+{
+  std::vector<Int>& vRVM_RP = m_vRVM_RP[iPicSizeIdx];
+
+  Double dRVM = 0;
+  
+  if( m_pcCfg->getGOPSize() == 1 && m_pcCfg->getIntraPeriod() != 1 && m_pcCfg->getFrameToBeEncoded() > RVM_VCEGAM10_M * 2 )
+  {
+    // calculate RVM only for lowdelay configurations
+    std::vector<Double> vRL , vB;
+    Int N = vRVM_RP.size();
+    vRL.resize( N );
+    vB.resize( N );
+    
+    Int i;
+    Double dRavg = 0 , dBavg = 0;
+    if (N>=RVM_VCEGAM10_M){
+      vB[RVM_VCEGAM10_M] = 0;
+      for( i = RVM_VCEGAM10_M + 1 ; i < N - RVM_VCEGAM10_M + 1 ; i++ )
+      {
+        vRL[i] = 0;
+        for( Int j = i - RVM_VCEGAM10_M ; j <= i + RVM_VCEGAM10_M - 1 ; j++ )
+          vRL[i] += vRVM_RP[j];
+        vRL[i] /= ( 2 * RVM_VCEGAM10_M );
+        vB[i] = vB[i-1] + vRVM_RP[i] - vRL[i];
+        dRavg += vRVM_RP[i];
+        dBavg += vB[i];
+      }
+    
+      dRavg /= ( N - 2 * RVM_VCEGAM10_M );
+      dBavg /= ( N - 2 * RVM_VCEGAM10_M );
+      double dSigamB = 0;
+      for( i = RVM_VCEGAM10_M + 1 ; i < N - RVM_VCEGAM10_M + 1 ; i++ )
+      {
+        Double tmp = vB[i] - dBavg;
+        dSigamB += tmp * tmp;
+      }
+      dSigamB = sqrt( dSigamB / ( N - 2 * RVM_VCEGAM10_M ) );
+    
+      double f = sqrt( 12.0 * ( RVM_VCEGAM10_M - 1 ) / ( RVM_VCEGAM10_M + 1 ) );
+    
+      dRVM = dSigamB / dRavg * f;
+    }
   }
   
   return( dRVM );

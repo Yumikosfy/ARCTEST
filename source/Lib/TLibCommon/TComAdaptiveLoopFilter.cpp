@@ -302,9 +302,30 @@ const Int TComAdaptiveLoopFilter::m_aiSymmetricMag9x7[32] =
 // Constructor / destructor / create / destroy
 // ====================================================================================================================
 
-TComAdaptiveLoopFilter::TComAdaptiveLoopFilter()
+TComAdaptiveLoopFilter::TComAdaptiveLoopFilter() :
+  m_pcTempPicYuv( NULL ),
+  m_imgY_pad( NULL ),
+  m_imgY_var( NULL ),
+  m_imgY_temp( NULL ),
+#if MQT_BA_RA
+  m_imgY_ver( NULL ),
+  m_imgY_hor( NULL ),
+#endif
+
+  m_filterCoeffSym( NULL ),
+  m_filterCoeffPrevSelected( NULL ),
+  m_filterCoeffTmp( NULL ),
+#if MTK_NONCROSS_INLOOP_FILTER
+  m_filterCoeffSymTmp( NULL ),
+  m_pSlice( NULL )
+#else
+  m_filterCoeffSymTmp( NULL )
+#endif
+
 {
-  m_pcTempPicYuv = NULL;
+  for (int i=0; i<NUM_ALF_CLASS_METHOD; ++i){
+    m_varImgMethods[i] = NULL;
+  }
 }
 
 Void TComAdaptiveLoopFilter:: xError(const char *text, int code)
@@ -352,14 +373,9 @@ Void TComAdaptiveLoopFilter::destroyMatrix_int(int **m2D)
   {
     if(m2D[0])
       free(m2D[0]);
-    else
-      FATAL_ERROR_0("destroyMatrix_int: memory free problem\n", -1);
     free(m2D);
-  } 
-  else
-  {
-    FATAL_ERROR_0("destroyMatrix_int: memory free problem\n", -1);
   }
+  m2D=NULL;
 }
 
 Void TComAdaptiveLoopFilter::destroyMatrix_imgpel(imgpel **m2D)
@@ -368,14 +384,9 @@ Void TComAdaptiveLoopFilter::destroyMatrix_imgpel(imgpel **m2D)
   {
     if(m2D[0])
       free(m2D[0]);
-    else
-      FATAL_ERROR_0("destroyMatrix_imgpel: memory free problem\n", -1);
     free(m2D);
-  } 
-  else
-  {
-    FATAL_ERROR_0("destroyMatrix_imgpel: memory free problem\n", -1);
   }
+  m2D=NULL;
 }
 
 Void TComAdaptiveLoopFilter::get_mem2Dpel(imgpel ***array2D, int rows, int columns)
@@ -397,13 +408,7 @@ Void TComAdaptiveLoopFilter::free_mem2Dpel(imgpel **array2D)
   {
     if (array2D[0])
       free (array2D[0]);
-    else xError ("free_mem2Dpel: trying to free unused memory",100);
-    
     free (array2D);
-  }
-  else
-  {
-    xError ("free_mem2Dpel: trying to free unused memory",100);
   }
 }
 
@@ -450,56 +455,44 @@ Void TComAdaptiveLoopFilter::destroyMatrix_double(double **m2D)
   {
     if(m2D[0])
       free(m2D[0]);
-    else
-      FATAL_ERROR_0("destroyMatrix_double: memory free problem\n", -1);
     free(m2D);
-  } 
-  else
-  {
-    FATAL_ERROR_0("destroyMatrix_double: memory free problem\n", -1);
   }
+  m2D=NULL;
 }
 
 Void TComAdaptiveLoopFilter::destroyMatrix3D_double(double ***m3D, int d1)
 {
   int i;
-  
+
   if(m3D)
   {
     for(i = 0; i < d1; i++)
       destroyMatrix_double(m3D[i]);
     free(m3D);
-  } 
-  else
-  {
-    FATAL_ERROR_0("destroyMatrix3D_double: memory free problem\n", -1);
   }
+  m3D=NULL;
 }
 
 
 Void TComAdaptiveLoopFilter::destroyMatrix4D_double(double ****m4D, int d1, int d2)
 {
   int  j;
-  
+
   if(m4D)
   {
     for(j = 0; j < d1; j++)
       destroyMatrix3D_double(m4D[j], d2);
     free(m4D);
-  } 
-  else
-  {
-    FATAL_ERROR_0("destroyMatrix4D_double: memory free problem\n", -1);
   }
+  m4D=NULL;
 }
 
 Void TComAdaptiveLoopFilter::create( Int iPicWidth, Int iPicHeight, UInt uiMaxCUWidth, UInt uiMaxCUHeight, UInt uiMaxCUDepth )
 {
-  if ( !m_pcTempPicYuv )
-  {
-    m_pcTempPicYuv = new TComPicYuv;
-    m_pcTempPicYuv->create( iPicWidth, iPicHeight, uiMaxCUWidth, uiMaxCUHeight, uiMaxCUDepth );
-  }
+  destroy();
+
+  m_pcTempPicYuv = new TComPicYuv;
+  m_pcTempPicYuv->create( iPicWidth, iPicHeight, uiMaxCUWidth, uiMaxCUHeight, uiMaxCUDepth );
   m_img_height = iPicHeight;
   m_img_width = iPicWidth;
 #if !MQT_BA_RA
@@ -507,6 +500,7 @@ Void TComAdaptiveLoopFilter::create( Int iPicWidth, Int iPicHeight, UInt uiMaxCU
 #endif
   initMatrix_int(&m_imgY_temp, m_img_height+2*VAR_SIZE+3, m_img_width+2*VAR_SIZE+3);
 #if MQT_BA_RA
+
   initMatrix_int(&m_imgY_ver, m_img_height+2*VAR_SIZE+3, m_img_width+2*VAR_SIZE+3);
   initMatrix_int(&m_imgY_hor, m_img_height+2*VAR_SIZE+3, m_img_width+2*VAR_SIZE+3);
   for(Int i=0; i< NUM_ALF_CLASS_METHOD; i++)
@@ -541,7 +535,7 @@ Void TComAdaptiveLoopFilter::destroy()
     delete m_pcTempPicYuv;
   }
 #if !MQT_BA_RA
-  destroyMatrix_imgpel(m_imgY_var); 
+  destroyMatrix_imgpel(m_imgY_var);
 #endif
   destroyMatrix_int(m_imgY_temp);
 
@@ -552,7 +546,7 @@ Void TComAdaptiveLoopFilter::destroy()
   {
     free_mem2Dpel(m_varImgMethods[i]);
   }
-#endif  
+#endif
   destroyMatrix_int(m_filterCoeffSym);
   destroyMatrix_int(m_filterCoeffPrevSelected);
   destroyMatrix_int(m_filterCoeffTmp);
@@ -790,7 +784,8 @@ Void TComAdaptiveLoopFilter::ALFProcess(TComPic* pcPic, ALFParam* pcAlfParam)
 #if MTK_NONCROSS_INLOOP_FILTER
   if(!m_bUseNonCrossALF)
   {
-#endif     
+#endif
+  // Copy across current reconstruction data
   pcPicYuvRec   ->copyToPic          ( pcPicYuvExtRec );
   pcPicYuvExtRec->setBorderExtension ( false );
   pcPicYuvExtRec->extendPicBorder    ();
@@ -1738,7 +1733,7 @@ Void TComAdaptiveLoopFilter::xSubCUAdaptive_qc(TComDataCU* pcCU, ALFParam* pcAlf
   UInt uiBPelY   = uiTPelY + (g_uiMaxCUHeight>>uiDepth) - 1;
   
   // check picture boundary
-  if ( ( uiRPelX >= pcCU->getSlice()->getSPS()->getWidth() ) || ( uiBPelY >= pcCU->getSlice()->getSPS()->getHeight() ) )
+  if ( ( uiRPelX >= pcCU->getSlice()->getPPS()->getPictureWidth() ) || ( uiBPelY >= pcCU->getSlice()->getPPS()->getPictureHeight() ) )
   {
     bBoundary = true;
   }
@@ -1752,7 +1747,7 @@ Void TComAdaptiveLoopFilter::xSubCUAdaptive_qc(TComDataCU* pcCU, ALFParam* pcAlf
       uiLPelX   = pcCU->getCUPelX() + g_auiRasterToPelX[ g_auiZscanToRaster[uiAbsPartIdx] ];
       uiTPelY   = pcCU->getCUPelY() + g_auiRasterToPelY[ g_auiZscanToRaster[uiAbsPartIdx] ];
       
-      if( ( uiLPelX < pcCU->getSlice()->getSPS()->getWidth() ) && ( uiTPelY < pcCU->getSlice()->getSPS()->getHeight() ) )
+      if( ( uiLPelX < pcCU->getSlice()->getPPS()->getPictureWidth() ) && ( uiTPelY < pcCU->getSlice()->getPPS()->getPictureHeight() ) )
         xSubCUAdaptive_qc(pcCU, pcAlfParam, imgY_rec_post, imgY_rec, uiAbsPartIdx, uiDepth+1, Stride);
     }
     return;
@@ -2154,7 +2149,7 @@ Void TComAdaptiveLoopFilter::setAlfCtrlFlags(ALFParam *pAlfParam, TComDataCU *pc
   UInt uiTPelY   = pcCU->getCUPelY() + g_auiRasterToPelY[ g_auiZscanToRaster[uiAbsPartIdx] ];
   UInt uiBPelY   = uiTPelY + (g_uiMaxCUHeight>>uiDepth) - 1;
   
-  if( ( uiRPelX >= pcCU->getSlice()->getSPS()->getWidth() ) || ( uiBPelY >= pcCU->getSlice()->getSPS()->getHeight() ) )
+  if( ( uiRPelX >= pcCU->getSlice()->getPPS()->getPictureWidth() ) || ( uiBPelY >= pcCU->getSlice()->getPPS()->getPictureHeight() ) )
   {
     bBoundary = true;
   }
@@ -2167,7 +2162,7 @@ Void TComAdaptiveLoopFilter::setAlfCtrlFlags(ALFParam *pAlfParam, TComDataCU *pc
       uiLPelX   = pcCU->getCUPelX() + g_auiRasterToPelX[ g_auiZscanToRaster[uiIdx] ];
       uiTPelY   = pcCU->getCUPelY() + g_auiRasterToPelY[ g_auiZscanToRaster[uiIdx] ];
       
-      if( ( uiLPelX < pcCU->getSlice()->getSPS()->getWidth() ) && ( uiTPelY < pcCU->getSlice()->getSPS()->getHeight() ) )
+      if( ( uiLPelX < pcCU->getSlice()->getPPS()->getPictureWidth() ) && ( uiTPelY < pcCU->getSlice()->getPPS()->getPictureHeight() ) )
       {
         setAlfCtrlFlags(pAlfParam, pcCU, uiIdx, uiDepth+1, idx);
       }
@@ -2294,8 +2289,8 @@ Void CAlfCU::init(TComPic* pcPic, UInt uiCUAddr, UInt uiStartCU, UInt uiEndCU, U
   m_uiCUAddr = uiCUAddr;
   m_pcCU = pcPic->getCU(m_uiCUAddr);
 
-  UInt uiPicWidth = m_pcCU->getSlice()->getSPS()->getWidth();
-  UInt uiPicHeight= m_pcCU->getSlice()->getSPS()->getHeight();
+  UInt uiPicWidth = m_pcCU->getSlice()->getPPS()->getPictureWidth();
+  UInt uiPicHeight= m_pcCU->getSlice()->getPPS()->getPictureHeight();
   UInt uiLPelX    = m_pcCU->getCUPelX();
   UInt uiTPelY    = m_pcCU->getCUPelY();
   UInt uiRPelX    = uiLPelX + g_uiMaxCUWidth  - 1;
@@ -2751,6 +2746,18 @@ Void TComAdaptiveLoopFilter::xFilterOneSlice(CAlfSlice* pSlice, imgpel* pDec, im
 #endif
 
 #if MTK_SAO
+TComSampleAdaptiveOffset::TComSampleAdaptiveOffset() :
+ m_psQAOPart( NULL ),
+ m_pClipTable( NULL ),
+ m_ppLumaTableBo0( NULL ),
+ m_ppLumaTableBo1( NULL ),
+ m_iUpBuff1( NULL ),
+ m_iUpBuff2( NULL ),
+ m_iUpBufft( NULL ),
+ ipSwap( NULL )
+{}
+
+
 const Int TComSampleAdaptiveOffset::m_aiNumPartsInRow[5] =
 {
   1,     //level 0
@@ -2832,6 +2839,7 @@ UInt TComSampleAdaptiveOffset::m_uiMaxDepth = AO_MAX_DEPTH;
  */
 Void TComSampleAdaptiveOffset::create( UInt uiSourceWidth, UInt uiSourceHeight, UInt uiMaxCUWidth, UInt uiMaxCUHeight, UInt uiMaxCUDepth)
 {
+  destroy();
 
   m_iPicWidth   = uiSourceWidth;
   m_iPicHeight  = uiSourceHeight; 
@@ -2874,7 +2882,6 @@ Void TComSampleAdaptiveOffset::create( UInt uiSourceWidth, UInt uiSourceHeight, 
     m_ppLumaTableBo1[k2] = auiTable[1][k2>>uiBoRangeShift];
   }
 
-
   m_iUpBuff1 = new Int[m_iPicWidth+2];
   m_iUpBuff2 = new Int[m_iPicWidth+2];
   m_iUpBufft = new Int[m_iPicWidth+2];
@@ -2913,6 +2920,8 @@ Void TComSampleAdaptiveOffset::create( UInt uiSourceWidth, UInt uiSourceHeight, 
  */
 Void TComSampleAdaptiveOffset::destroy()
 {
+  m_pClipTable = NULL;
+  ipSwap = NULL;
 
   if (m_ppLumaTableBo0)
   {
@@ -3054,20 +3063,17 @@ Void TComSampleAdaptiveOffset::xDestroyQAOParts()
 {
 
   int i;
-  for(i=0; i< m_aiNumCulPartsLevel[m_uiMaxSplitLevel]; i++)
-  {
-    //        freeALFParam( &(m_psAlfPart[i].sAlfParam) );
-
-    if (m_psQAOPart[i].pSubPartList)
+  if (m_psQAOPart){
+    for(i=0; i< m_aiNumCulPartsLevel[m_uiMaxSplitLevel]; i++)
     {
-      delete[] m_psQAOPart[i].pSubPartList;    m_psQAOPart[i].pSubPartList = NULL;
+      //        freeALFParam( &(m_psAlfPart[i].sAlfParam) );
+
+      if (m_psQAOPart[i].pSubPartList)
+      {
+        delete[] m_psQAOPart[i].pSubPartList;    m_psQAOPart[i].pSubPartList = NULL;
+      }
 
     }
-
-  }
-
-  if (m_psQAOPart)
-  {
     delete[] m_psQAOPart; m_psQAOPart = NULL;
   }
 }
@@ -3437,7 +3443,6 @@ Void TComSampleAdaptiveOffset::xAoOnePart(UInt uiPartIdx, TComPicYuv* pcPicYuvDs
  */
 Void TComSampleAdaptiveOffset::xProcessQuadTreeAo(UInt uiPartIdx, TComPicYuv* pcPicYuvRec, TComPicYuv* pcPicYuvExt)
 {
-
   SAOQTPart*  pQAOPart= &(m_psQAOPart[uiPartIdx]);
 
   if (!pQAOPart->bSplit)
@@ -3579,7 +3584,7 @@ Void TComAdaptiveLoopFilter::xPCMCURestoration ( TComDataCU* pcCU, UInt uiAbsZor
     {
       UInt uiLPelX   = pcCU->getCUPelX() + g_auiRasterToPelX[ g_auiZscanToRaster[uiAbsZorderIdx] ];
       UInt uiTPelY   = pcCU->getCUPelY() + g_auiRasterToPelY[ g_auiZscanToRaster[uiAbsZorderIdx] ];
-      if( ( uiLPelX < pcCU->getSlice()->getSPS()->getWidth() ) && ( uiTPelY < pcCU->getSlice()->getSPS()->getHeight() ) )
+      if( ( uiLPelX < pcCU->getSlice()->getPPS()->getPictureWidth() ) && ( uiTPelY < pcCU->getSlice()->getPPS()->getPictureHeight() ) )
         xPCMCURestoration( pcCU, uiAbsZorderIdx, uiDepth+1 );
     }
     return;

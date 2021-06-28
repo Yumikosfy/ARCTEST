@@ -124,12 +124,18 @@ Bool TAppEncCfg::parseCfg( Int argc, Char* argv[] )
   ("InternalBitDepth",      m_uiInternalBitDepth, 0u, "Internal bit-depth (BitDepth+BitIncrement)")
   ("HorizontalPadding,-pdx",m_aiPad[0],      0, "horizontal source padding size")
   ("VerticalPadding,-pdy",  m_aiPad[1],      0, "vertical source padding size")
-  ("PAD",                   m_bUsePAD,   false, "automatic source padding of multiple of 16" )
+#if JCT_ARC
+  ("PAD",                   m_bUsePAD,   true, "automatic source padding of multiple of 16" )
+#endif
   ("FrameRate,-fr",         m_iFrameRate,        0, "Frame rate")
   ("FrameSkip,-fs",         m_FrameSkip,         0u, "Number of frames to skip at start of input YUV")
   ("FramesToBeEncoded,f",   m_iFrameToBeEncoded, 0, "number of frames to be encoded (default=all)")
   ("FrameToBeEncoded",      m_iFrameToBeEncoded, 0, "depricated alias of FramesToBeEncoded")
-  
+#if JCT_ARC
+  ("ResSwitchFrameNum",m_uiResSwitchFrameNum,    0u, "Frame number at which resolution change occurs (default 0)")
+  ("ResSwitchType",m_uiResSwitchType,    0u, "Type of resolution switch: 0 = low to high predicted; 1 = high to low predicted ; 2=low to high IDR, 3=high to low predicted")
+  ("IntraQPOffset", m_iIntraQPOffset, 0, "Additional QP offset to apply to intra pictures")
+#endif
   /* Unit definition parameters */
   ("MaxCUWidth",          m_uiMaxCUWidth,  64u)
   ("MaxCUHeight",         m_uiMaxCUHeight, 64u)
@@ -333,8 +339,17 @@ Bool TAppEncCfg::parseCfg( Int argc, Char* argv[] )
       }
       fclose(fpt);
     }
+#if JCT_ARC
+  } else if (m_iIntraQPOffset != 0){
+    if ( m_iIntraPeriod>0 ){
+      for (int i=0; i<m_iFrameToBeEncoded + m_iRateGOPSize + 1; ++m_iIntraPeriod){
+        m_aidQP[i] += m_iIntraQPOffset;
+      }
+    } else {
+      m_aidQP[0] += m_iIntraQPOffset;
+    }
   }
-  
+#endif
   // check validity of input parameters
   xCheckParameter();
   
@@ -365,6 +380,9 @@ Void TAppEncCfg::xCheckParameter()
 #endif
   xConfirmPara( m_iFrameRate <= 0,                                                          "Frame rate must be more than 1" );
   xConfirmPara( m_iFrameToBeEncoded <= 0,                                                   "Total Number Of Frames encoded must be more than 1" );
+#if JCT_ARC
+  xConfirmPara( m_uiResSwitchType >= 4,                                                     "Resolution switch type must be 0 or 1" );
+#endif
   xConfirmPara( m_iGOPSize < 1 ,                                                            "GOP Size must be more than 1" );
   xConfirmPara( m_iGOPSize > 1 &&  m_iGOPSize % 2,                                          "GOP Size must be a multiple of 2, if GOP Size is greater than 1" );
   xConfirmPara( (m_iIntraPeriod > 0 && m_iIntraPeriod < m_iGOPSize) || m_iIntraPeriod == 0, "Intra period must be more than GOP size, or -1 , not 0" );
@@ -374,6 +392,9 @@ Void TAppEncCfg::xCheckParameter()
   xConfirmPara( m_iQP < 0 || m_iQP > 51,                                                    "QP exceeds supported range (0 to 51)" );
 #if MQT_ALF_NPASS
   xConfirmPara( m_iALFEncodePassReduction < 0 || m_iALFEncodePassReduction > 2,             "ALFEncodePassReduction must be equal to 0, 1 or 2");
+#endif
+#if JCT_ARC
+  xConfirmPara( m_iIntraQPOffset+m_iQP<0 || m_iIntraQPOffset+m_iQP > 51 ,                   "Intra QP with this offset will lie outside supported range (0 to 51)");
 #endif
   xConfirmPara( m_iLoopFilterAlphaC0Offset < -26 || m_iLoopFilterAlphaC0Offset > 26,        "Loop Filter Alpha Offset exceeds supported range (-26 to 26)" );
   xConfirmPara( m_iLoopFilterBetaOffset < -26 || m_iLoopFilterBetaOffset > 26,              "Loop Filter Beta Offset exceeds supported range (-26 to 26)");
@@ -427,7 +448,9 @@ Void TAppEncCfg::xCheckParameter()
 #if DCM_COMB_LIST
   xConfirmPara( m_bUseLComb==false && m_bUseLDC==false,         "LComb can only be 0 if LowDelayCoding is 1" );
 #endif
-  
+#if JCT_ARC
+  xConfirmPara( m_uiResSwitchType >=2 && m_iGOPSize != 1, "Resolution swirching does not support inserting an IDR at any point in RA configurations");
+#endif
   // max CU width and height should be power of 2
   UInt ui = m_uiMaxCUWidth;
   while(ui)
@@ -529,6 +552,10 @@ Void TAppEncCfg::xPrintParameter()
   printf("Real     Format              : %dx%d %dHz\n", m_iSourceWidth - m_aiPad[0], m_iSourceHeight-m_aiPad[1], m_iFrameRate );
   printf("Internal Format              : %dx%d %dHz\n", m_iSourceWidth, m_iSourceHeight, m_iFrameRate );
   printf("Frame index                  : %u - %d (%d frames)\n", m_FrameSkip, m_FrameSkip+m_iFrameToBeEncoded-1, m_iFrameToBeEncoded );
+#if JCT_ARC
+  printf("Resolution switch at frame   : %u\n", m_uiResSwitchFrameNum);
+  printf("Resolution switch type       : %u\n", m_uiResSwitchType);
+#endif
   printf("Number of Ref. frames (P)    : %d\n", m_iNumOfReference);
   printf("Number of Ref. frames (B_L0) : %d\n", m_iNumOfReferenceB_L0);
   printf("Number of Ref. frames (B_L1) : %d\n", m_iNumOfReferenceB_L1);

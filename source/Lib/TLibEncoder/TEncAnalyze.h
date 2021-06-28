@@ -145,11 +145,15 @@ public:
     fclose(pFile);
   }
 };
-
 extern TEncAnalyze             m_gcAnalyzeAll;
 extern TEncAnalyze             m_gcAnalyzeI;
 extern TEncAnalyze             m_gcAnalyzeP;
 extern TEncAnalyze             m_gcAnalyzeB;
+
+extern TEncAnalyze             m_gcAnalyzeAllMultiRes[NUM_PIC_RESOLUTIONS];
+extern TEncAnalyze             m_gcAnalyzeIMultiRes[NUM_PIC_RESOLUTIONS];
+extern TEncAnalyze             m_gcAnalyzePMultiRes[NUM_PIC_RESOLUTIONS];
+extern TEncAnalyze             m_gcAnalyzeBMultiRes[NUM_PIC_RESOLUTIONS];
 
 #endif // !defined(AFX_TENCANALYZE_H__C79BCAA2_6AC8_4175_A0FE_CF02F5829233__INCLUDED_)
 

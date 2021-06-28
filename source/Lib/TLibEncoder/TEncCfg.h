@@ -65,6 +65,8 @@ protected:
 #if DCM_DECODING_REFRESH
   UInt      m_uiDecodingRefreshType;            ///< the type of decoding refresh employed for the random access.
 #endif
+  UInt      m_uiResSwitchFrameNum;
+  UInt      m_uiResSwitchType;
   Int       m_iGOPSize;
   Int       m_iRateGOPSize;
   Int       m_iNumOfReference;
@@ -182,6 +184,10 @@ public:
   Void      setFrameToBeEncoded             ( Int   i )      { m_iFrameToBeEncoded = i; }
   
   //====== Coding Structure ========
+  Void      setResSwitchFrameNum            ( UInt  u )      { m_uiResSwitchFrameNum = u; }
+  Void      setResSwitchType                ( UInt  u )      { m_uiResSwitchType = u; }
+  UInt      getResSwitchFrameNum            ()               { return m_uiResSwitchFrameNum; }
+  UInt      getResSwitchType                ()               { return m_uiResSwitchType; }
   Void      setIntraPeriod                  ( Int   i )      { m_uiIntraPeriod = (UInt)i; }
 #if DCM_DECODING_REFRESH
   Void      setDecodingRefreshType          ( Int   i )      { m_uiDecodingRefreshType = (UInt)i; }
@@ -239,6 +245,8 @@ public:
   Int       getFrameToBeEncoded             ()      { return  m_iFrameToBeEncoded; }
   
   //==== Coding Structure ========
+  UInt      setResSwitchFrameNum            ()      { return  m_uiResSwitchFrameNum; }
+  UInt      setResSwitchFrameType           ()      { return  m_uiResSwitchType; }
   UInt      getIntraPeriod                  ()      { return  m_uiIntraPeriod; }
 #if DCM_DECODING_REFRESH
   UInt      getDecodingRefreshType          ()      { return  m_uiDecodingRefreshType; }

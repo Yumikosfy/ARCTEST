@@ -42,6 +42,7 @@
 TComSlice::TComSlice()
 {
   m_iPOC                = 0;
+  m_uiPPSId             = 0;
   m_eSliceType          = I_SLICE;
   m_iSliceQp            = 0;
   m_iSymbolMode         = 1;
@@ -83,7 +84,22 @@ TComSlice::~TComSlice()
 {
 }
 
+Void TComSlice::setPPS( const std::vector<TComPPS*>& cPPSList, const UInt uiPPSId)
+{
+  Bool bFoundPPS = false;
+  for (size_t p=0; p<cPPSList.size(); ++p){
+    if ( uiPPSId == cPPSList[p]->getPPSId()){
+      m_pcPPS = cPPSList[p];
+      bFoundPPS = true;
+      break;
+    }
+  }
+  assert(bFoundPPS);
 
+  m_pcSPS = m_pcPPS->getSPS();
+  m_uiPPSId = m_pcPPS->getPPSId();
+
+}
 Void TComSlice::initSlice()
 {
   m_aiNumRefIdx[0]      = 0;
@@ -418,8 +434,8 @@ Void TComSlice::setRefPicList       ( TComList<TComPic*>& rcListPic )
     if (pcRefPic != NULL)
     {
       m_apcRefPicList[eRefPicList][iRefIdx] = pcRefPic;
-      
-      pcRefPic->getPicYuvRec()->extendPicBorder();
+     
+      pcRefPic->getPicYuvRec(m_pcPPS->getPictureSizeIdx())->extendPicBorder();
       
       iRefIdx++;
       uiOrderDRB++;
@@ -458,8 +474,8 @@ Void TComSlice::setRefPicList       ( TComList<TComPic*>& rcListPic )
       {
         m_apcRefPicList[eRefPicList][iRefIdx] = pcRefPic;
       }
-      
-      pcRefPic->getPicYuvRec()->extendPicBorder();
+     
+      pcRefPic->getPicYuvRec(m_pcPPS->getPictureSizeIdx())->extendPicBorder();
       
       iRefIdx++;
       uiOrderERB++;
@@ -781,8 +797,8 @@ Void TComSlice::decodingTLayerSwitchingMarking( TComList<TComPic*>& rcListPic )
 TComSPS::TComSPS()
 {
   // Structure
-  m_uiWidth       = 352;
-  m_uiHeight      = 288;
+  m_uiNominalWidth = 352;
+  m_uiNominalHeight= 288;
   m_uiMaxCUWidth  = 32;
   m_uiMaxCUHeight = 32;
   m_uiMaxCUDepth  = 3;
@@ -816,6 +832,10 @@ TComPPS::TComPPS()
 #if CONSTRAINED_INTRA_PRED
   m_bConstrainedIntraPred = false;
 #endif
+
+  m_uiPictureSizeIdx = 0;
+  m_uiWidth       = 352;
+  m_uiHeight      = 288;
 
   m_uiNumTlayerSwitchingFlags = 0;
   for ( UInt i = 0; i < MAX_TLAYER; i++ )

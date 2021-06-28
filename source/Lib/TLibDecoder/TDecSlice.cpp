@@ -93,7 +93,7 @@ Void TDecSlice::decompressSlice(TComInputBitstream* pcBitstream, TComPic*& rpcPi
   for( Int iCUAddr = iStartCUAddr; !uiIsLast && iCUAddr < rpcPic->getNumCUsInFrame(); iCUAddr++, uiLastCUAddr++ )
   {
     pcCU = rpcPic->getCU( iCUAddr );
-    pcCU->initCU( rpcPic, iCUAddr );
+    pcCU->initCU( rpcPic, iCUAddr );// FIXME: we must be initialising the wrong set
     
 #if SUB_LCU_DQP
     pcCU->setLastCodedQP( uhLastQP );

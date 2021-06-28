@@ -3406,9 +3406,11 @@ UInt TEncSearch::xGetTemplateCost( TComDataCU* pcCU,
                                #endif
                                   )
 {
+  const Int iPicSizeIdx = pcCU->getPic()->getPictureSizeIdx();
+
   UInt uiCost  = MAX_INT;
   
-  TComPicYuv* pcPicYuvRef = pcCU->getSlice()->getRefPic( eRefPicList, iRefIdx )->getPicYuvRec();
+  TComPicYuv* pcPicYuvRef = pcCU->getSlice()->getRefPic( eRefPicList, iRefIdx )->getPicYuvRec(iPicSizeIdx);
   
   // prediction pattern
   xPredInterLumaBlk( pcCU, pcPicYuvRef, uiPartAddr, &cMvCand, iSizeX, iSizeY, pcTemplateCand );
@@ -3432,6 +3434,8 @@ UInt TEncSearch::xGetTemplateCost( TComDataCU* pcCU,
 
 Void TEncSearch::xMotionEstimation( TComDataCU* pcCU, TComYuv* pcYuvOrg, Int iPartIdx, RefPicList eRefPicList, TComMv* pcMvPred, Int iRefIdxPred, TComMv& rcMv, UInt& ruiBits, UInt& ruiCost, Bool bBi  )
 {
+  const Int     iPicSizeIdx = pcCU->getPic()->getPictureSizeIdx();
+
   UInt          uiPartAddr;
   Int           iRoiWidth;
   Int           iRoiHeight;
@@ -3488,8 +3492,8 @@ Void TEncSearch::xMotionEstimation( TComDataCU* pcCU, TComYuv* pcYuvOrg, Int iPa
                             pcYuv->getStride(),
                             0, 0, 0, 0 );
   
-  Pel*        piRefY      = pcCU->getSlice()->getRefPic( eRefPicList, iRefIdxPred )->getPicYuvRec()->getLumaAddr( pcCU->getAddr(), pcCU->getZorderIdxInCU() + uiPartAddr );
-  Int         iRefStride  = pcCU->getSlice()->getRefPic( eRefPicList, iRefIdxPred )->getPicYuvRec()->getStride();
+  Pel*        piRefY      = pcCU->getSlice()->getRefPic( eRefPicList, iRefIdxPred )->getPicYuvRec(iPicSizeIdx)->getLumaAddr( pcCU->getAddr(), pcCU->getZorderIdxInCU() + uiPartAddr );
+  Int         iRefStride  = pcCU->getSlice()->getRefPic( eRefPicList, iRefIdxPred )->getPicYuvRec(iPicSizeIdx)->getStride();
   
   TComMv      cMvPred = *pcMvPred;
   

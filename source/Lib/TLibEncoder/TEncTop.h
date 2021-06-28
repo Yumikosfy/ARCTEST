@@ -77,9 +77,9 @@ private:
   TComTrQuant             m_cTrQuant;                     ///< transform & quantization class
   TComLoopFilter          m_cLoopFilter;                  ///< deblocking filter class
 #if MTK_SAO
-  TEncSampleAdaptiveOffset  m_cEncSAO;                    ///< sample adaptive offset class
+  TEncSampleAdaptiveOffset  m_cEncSAO[NUM_PIC_RESOLUTIONS]; ///< sample adaptive offset class for each resolution
 #endif
-  TEncAdaptiveLoopFilter  m_cAdaptiveLoopFilter;          ///< adaptive loop filter class
+  TEncAdaptiveLoopFilter  m_cAdaptiveLoopFilter[NUM_PIC_RESOLUTIONS];  ///< adaptive loop filter class for each resolution
   TEncEntropy             m_cEntropyCoder;                ///< entropy encoder
   TEncCavlc               m_cCavlcCoder;                  ///< CAVLC encoder
   TEncSbac                m_cSbacCoder;                   ///< SBAC encoder
@@ -90,8 +90,8 @@ private:
   TEncSlice               m_cSliceEncoder;                ///< slice encoder
   TEncCu                  m_cCuEncoder;                   ///< CU encoder
   // SPS
-  TComSPS                 m_cSPS;                         ///< SPS
-  TComPPS                 m_cPPS;                         ///< PPS
+  TComSPS*                m_pcSPS[1];                      ///< array of SPSs available
+  TComPPS*                m_pcPPS[NUM_PIC_RESOLUTIONS];    ///< one PPS for each resolution
   
   // RD cost computation
   TComBitCounter          m_cBitCounter;                  ///< bit counter for RD optimization
@@ -104,7 +104,7 @@ private:
 protected:
   Void  xGetNewPicBuffer  ( TComPic*& rpcPic );           ///< get picture buffer which will be processed
   Void  xInitSPS          ();                             ///< initialize SPS from encoder options
-  Void  xInitPPS          ();                             ///< initialize PPS from encoder options
+  Void  xInitPPS          (Int i);                        ///< initialize PPS from encoder options for resolution index i
   
 public:
   TEncTop();
@@ -124,9 +124,9 @@ public:
   
   TComTrQuant*            getTrQuant            () { return  &m_cTrQuant;             }
   TComLoopFilter*         getLoopFilter         () { return  &m_cLoopFilter;          }
-  TEncAdaptiveLoopFilter* getAdaptiveLoopFilter () { return  &m_cAdaptiveLoopFilter;  }
+  TEncAdaptiveLoopFilter* getAdaptiveLoopFilter () { return  &m_cAdaptiveLoopFilter[0];  }
 #if MTK_SAO
-  TEncSampleAdaptiveOffset* getSAO                () { return  &m_cEncSAO;              }
+  TEncSampleAdaptiveOffset* getSAO                () { return  &m_cEncSAO[0];              }
 #endif
   TEncGOP*                getGOPEncoder         () { return  &m_cGOPEncoder;          }
   TEncSlice*              getSliceEncoder       () { return  &m_cSliceEncoder;        }
@@ -141,8 +141,8 @@ public:
   TEncSbac***             getRDSbacCoder        () { return  m_pppcRDSbacCoder;       }
   TEncSbac*               getRDGoOnSbacCoder    () { return  &m_cRDGoOnSbacCoder;     }
   
-  TComSPS*                getSPS                () { return  &m_cSPS;                 }
-  TComPPS*                getPPS                () { return  &m_cPPS;                 }
+  TComSPS*                getSPS                () { return  m_pcSPS[0];                 }
+  TComPPS**               getPPS                () { return  m_pcPPS;                 }
   
   // -------------------------------------------------------------------------------------------------------------------
   // encoder function

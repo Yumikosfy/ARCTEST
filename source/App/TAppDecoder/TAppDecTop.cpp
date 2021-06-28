@@ -105,7 +105,6 @@ Void TAppDecTop::decode()
      * nal unit. */
     streampos location = bitstreamFile.tellg();
     AnnexBStats stats = AnnexBStats();
-
     vector<uint8_t> nalUnit;
     byteStreamNALUnit(bytestream, nalUnit, stats);
 
@@ -153,10 +152,10 @@ Void TAppDecTop::decode()
       xWriteOutput( pcListPic );
     }
   }
-  
+
   // delete buffers
   m_cTDecTop.deletePicBuffer();
-  
+
   // destroy internal classes
   xDestroyDecLib();
 }
@@ -177,7 +176,7 @@ Void TAppDecTop::xDestroyDecLib()
   {
     m_cTVideoIOYuvReconFile. close();
   }
-  
+
   // destroy decoder class
   m_cTDecTop.destroy();
 }
@@ -206,7 +205,8 @@ Void TAppDecTop::xWriteOutput( TComList<TComPic*>* pcListPic )
       // write to file
       if ( m_pchReconFile )
       {
-        m_cTVideoIOYuvReconFile.write( pcPic->getPicYuvRec(), pcPic->getSlice(0)->getSPS()->getPad() );
+        // Write out the top-level reconstructed file
+        m_cTVideoIOYuvReconFile.write( pcPic->getPicYuvRec(0), pcPic->getSlice(0)->getSPS()->getPad() );
       }
       
       // update POC of display order

@@ -103,14 +103,14 @@ public:
   //  Get information of picture
   // ------------------------------------------------------------------------------------------------
   
-  Int   getWidth    ()     { return  m_iPicWidth;    }
-  Int   getHeight   ()     { return  m_iPicHeight;   }
+  Int   getWidth    () const { return  m_iPicWidth;    }
+  Int   getHeight   () const { return  m_iPicHeight;   }
   
-  Int   getStride   ()     { return (m_iPicWidth     ) + (m_iLumaMarginX  <<1); }
-  Int   getCStride  ()     { return (m_iPicWidth >> 1) + (m_iChromaMarginX<<1); }
+  Int   getStride   () const { return (m_iPicWidth     ) + (m_iLumaMarginX  <<1); }
+  Int   getCStride  () const { return (m_iPicWidth >> 1) + (m_iChromaMarginX<<1); }
   
-  Int   getLumaMargin   () { return m_iLumaMarginX;  }
-  Int   getChromaMargin () { return m_iChromaMarginX;}
+  Int   getLumaMargin   () const { return m_iLumaMarginX;  }
+  Int   getChromaMargin () const { return m_iChromaMarginX;}
   
   Void  getLumaMinMax( Int* pMin, Int* pMax );
   
@@ -122,12 +122,18 @@ public:
   Pel*  getBufY     ()     { return  m_apiPicBufY;   }
   Pel*  getBufU     ()     { return  m_apiPicBufU;   }
   Pel*  getBufV     ()     { return  m_apiPicBufV;   }
+  const Pel*  getBufY     () const    { return  m_apiPicBufY;   }
+  const Pel*  getBufU     () const    { return  m_apiPicBufU;   }
+  const Pel*  getBufV     () const    { return  m_apiPicBufV;   }
   
   //  Access starting position of original picture
   Pel*  getLumaAddr ()     { return  m_piPicOrgY;    }
   Pel*  getCbAddr   ()     { return  m_piPicOrgU;    }
   Pel*  getCrAddr   ()     { return  m_piPicOrgV;    }
   
+  const Pel*  getLumaAddr () const    { return  m_piPicOrgY;    }
+  const Pel*  getCbAddr   () const    { return  m_piPicOrgU;    }
+  const Pel*  getCrAddr   () const    { return  m_piPicOrgV;    }
   //  Access starting position of original picture for specific coding unit (CU) or partition unit (PU)
   Pel*  getLumaAddr ( Int iCuAddr );
   Pel*  getCbAddr   ( Int iCuAddr );
@@ -141,10 +147,10 @@ public:
   // ------------------------------------------------------------------------------------------------
   
   //  Copy function to picture
-  Void  copyToPic       ( TComPicYuv*  pcPicYuvDst );
-  Void  copyToPicLuma   ( TComPicYuv*  pcPicYuvDst );
-  Void  copyToPicCb     ( TComPicYuv*  pcPicYuvDst );
-  Void  copyToPicCr     ( TComPicYuv*  pcPicYuvDst );
+  Void  copyToPic      ( TComPicYuv*  pcPicYuvDst ) const;
+  Void  copyToPicLuma   ( TComPicYuv*  pcPicYuvDst ) const;
+  Void  copyToPicCb     ( TComPicYuv*  pcPicYuvDst ) const;
+  Void  copyToPicCr     ( TComPicYuv*  pcPicYuvDst ) const;
   
   //  Extend function of picture buffer
   Void  extendPicBorder      ();
@@ -154,6 +160,7 @@ public:
   
   // Set border extension flag
   Void  setBorderExtension(Bool b) { m_bIsBorderExtended = b; }
+  Bool  getIsBorderExtended(){ return m_bIsBorderExtended; }
 #if FIXED_ROUNDING_FRAME_MEMORY
   Void  xFixedRoundingPic();
 #endif  

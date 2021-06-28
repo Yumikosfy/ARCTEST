@@ -58,6 +58,11 @@ protected:
   unsigned int m_FrameSkip;                                   ///< number of skipped frames from the beginning
   Int       m_iSourceWidth;                                   ///< source width in pixel
   Int       m_iSourceHeight;                                  ///< source height in pixel
+#if JCT_ARC
+  UInt      m_uiResSwitchFrameNum;                            ///< frame number at which resolution changes
+  UInt      m_uiResSwitchType;                                ///< resolution switch type: 0=low to high, 1=high to low
+  Int       m_iIntraQPOffset;                                 ///< offset to apply to the normal Intra QP value
+#endif
   Int       m_iFrameToBeEncoded;                              ///< number of encoded frames
   Bool      m_bUsePAD;                                        ///< flag for using source padding
   Int       m_aiPad[2];                                       ///< number of padded pixels for width and height

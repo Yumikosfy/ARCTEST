@@ -230,6 +230,9 @@ void TEncCavlc::codeSEI(const SEI& sei)
 
 Void TEncCavlc::codePPS( TComPPS* pcPPS )
 {
+  xWriteUvlc( pcPPS->getPPSId() );
+  xWriteUvlc( pcPPS->getSPSId() );
+  xWriteUvlc  ( pcPPS->getPictureSizeIdx() );
 #if CONSTRAINED_INTRA_PRED
   xWriteFlag( pcPPS->getConstrainedIntraPred() ? 1 : 0 );
 #endif
@@ -252,12 +255,12 @@ Void TEncCavlc::codePPS( TComPPS* pcPPS )
 
 Void TEncCavlc::codeSPS( TComSPS* pcSPS )
 {
+  xWriteUvlc( pcSPS->getSPSId() );
   xWriteCode( pcSPS->getMaxTLayers() - 1, 3 ); // maximum number of temporal layers minus 1
 
-
   // Structure
-  xWriteUvlc  ( pcSPS->getWidth () );
-  xWriteUvlc  ( pcSPS->getHeight() );
+  xWriteUvlc  ( pcSPS->getNominalWidth () );
+  xWriteUvlc  ( pcSPS->getNominalHeight() );
   
   xWriteUvlc  ( pcSPS->getPad (0) );
   xWriteUvlc  ( pcSPS->getPad (1) );
@@ -338,6 +341,7 @@ Void TEncCavlc::codeSliceHeader         ( TComSlice* pcSlice )
   }
   if (!bEntropySlice)
   {
+  xWriteUvlc  (pcSlice->getPPSId() );
   xWriteCode  (pcSlice->getPOC(), 10 );   //  9 == SPS->Log2MaxFrameNum
   xWriteUvlc  (pcSlice->getSliceType() );
   xWriteSvlc  (pcSlice->getSliceQp() );

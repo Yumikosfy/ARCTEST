@@ -65,9 +65,9 @@ public:
   virtual Void  setBitstream          ( TComInputBitstream* p )  = 0;
 
   virtual Void  parseSPS                  ( TComSPS* pcSPS )                                      = 0;
-  virtual Void  parsePPS                  ( TComPPS* pcPPS )                                      = 0;
-  virtual void parseSEI(SEImessages&) = 0;
-  virtual Void  parseSliceHeader          ( TComSlice*& rpcSlice )                                = 0;
+  virtual Void  parsePPS              (TComPPS* pcPPS, const std::vector<TComSPS*>& cSPSList)     = 0;
+  virtual Void parseSEI(SEImessages&) = 0;
+  virtual Void  parseSliceHeader          ( TComSlice*& rpcSlice, const std::vector<TComPPS*>& cPPSList ) = 0;
   virtual Void  parseTerminatingBit       ( UInt& ruilsLast )                                     = 0;
   
   virtual Void parseMVPIdx      ( TComDataCU* pcCU, Int& riMVPIdx, Int iMVPNum, UInt uiAbsPartIdx, UInt uiDepth, RefPicList eRefList ) = 0;
@@ -144,9 +144,9 @@ public:
   Void    resetEntropy                ( TComSlice* p)           { m_pcEntropyDecoderIf->resetEntropy(p);                    }
 
   Void    decodeSPS                   ( TComSPS* pcSPS     )    { m_pcEntropyDecoderIf->parseSPS(pcSPS);                    }
-  Void    decodePPS                   ( TComPPS* pcPPS     )    { m_pcEntropyDecoderIf->parsePPS(pcPPS);                    }
+  Void    decodePPS                   (TComPPS* pcPPS, const std::vector<TComSPS*>& cSPSList){m_pcEntropyDecoderIf->parsePPS( pcPPS, cSPSList );}
   void decodeSEI(SEImessages& seis) { m_pcEntropyDecoderIf->parseSEI(seis); }
-  Void    decodeSliceHeader           ( TComSlice*& rpcSlice )  { m_pcEntropyDecoderIf->parseSliceHeader(rpcSlice);         }
+  Void    decodeSliceHeader           ( TComSlice*& rpcSlice, const std::vector<TComPPS*>& cPPSList )  { m_pcEntropyDecoderIf->parseSliceHeader(rpcSlice, cPPSList);         }
   Void    decodeTerminatingBit        ( UInt& ruiIsLast )       { m_pcEntropyDecoderIf->parseTerminatingBit(ruiIsLast);     }
   
   // Adaptive Loop filter

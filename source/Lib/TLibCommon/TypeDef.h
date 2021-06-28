@@ -48,6 +48,9 @@
 ////////////////////////////
 // JCT-VC E end
 ////////////////////////////
+#define JCT_ARC 1
+#define NUM_PIC_RESOLUTIONS               2          ///< Number of picture resolutions available for coding
+#define NUM_MISSING_FRAMES_AT_RES_SWITCH  4          ///< Number of frames deemed to have been lost before a resolution switch
 
 #define HHI_DISABLE_INTER_NxN_SPLIT       1           ///< TN: disable redundant use of pu-mode NxN for CTBs larger 8x8 (inter only)
 #define HHI_RMP_SWITCH                    0

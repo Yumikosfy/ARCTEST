@@ -76,7 +76,6 @@ void read(InputNALUnit& nalu, vector<uint8_t>& nalUnitBuf)
 
   nalu.m_RefIDC = (NalRefIdc) bs.read(2);
   nalu.m_UnitType = (NalUnitType) bs.read(5);
-
   switch (nalu.m_UnitType)
   {
   case NAL_UNIT_CODED_SLICE:

@@ -68,6 +68,10 @@ Void TAppEncTop::xInitLibCfg()
   m_cTEncTop.setFrameSkip                    ( m_FrameSkip );
   m_cTEncTop.setSourceWidth                  ( m_iSourceWidth );
   m_cTEncTop.setSourceHeight                 ( m_iSourceHeight );
+#if JCT_ARC
+  m_cTEncTop.setResSwitchFrameNum            ( m_uiResSwitchFrameNum );
+  m_cTEncTop.setResSwitchType                ( m_uiResSwitchType );
+#endif
   m_cTEncTop.setFrameToBeEncoded             ( m_iFrameToBeEncoded );
   
   //====== Coding Structure ========
@@ -403,7 +407,7 @@ void TAppEncTop::rateStatsAccum(const AccessUnit& au, const vector<unsigned>& an
   }
 }
 
-void TAppEncTop::printRateSummary()
+void TAppEncTop::printRateSummary()// FIXME: account for resolution parts separately
 {
   double time = (double) m_iFrameRcvd / m_iFrameRate;
   printf("Bytes written to file: %u (%.3f kbps)\n", m_totalBytes, 0.008 * m_totalBytes / time);

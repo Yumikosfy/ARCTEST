@@ -634,6 +634,9 @@ Void TComYuv::addAvg( TComYuv* pcYuvSrc0, TComYuv* pcYuvSrc1, UInt iPartUnitIdx,
     for ( x = iWidth-1; x >= 0; )
     {
       // note: chroma min width is 2
+//      assert(pSrcU0[x]>=0);
+//      assert(pSrcU0[x]<=1023);
+//      assert
       pDstU[x] = Clip((pSrcU0[x] + pSrcU1[x] + offset) >> shiftNum);
       pDstV[x] = Clip((pSrcV0[x] + pSrcV1[x] + offset) >> shiftNum); x--;
       pDstU[x] = Clip((pSrcU0[x] + pSrcU1[x] + offset) >> shiftNum);

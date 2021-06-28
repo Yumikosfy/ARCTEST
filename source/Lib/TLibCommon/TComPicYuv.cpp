@@ -209,7 +209,7 @@ Pel*  TComPicYuv::getCrAddr( Int iCuAddr, Int uiAbsZorderIdx )
   return (m_piPicOrgV + ( ( iOffsetCu + iOffsetBase)>>1 ) );
 }
 
-Void  TComPicYuv::copyToPic (TComPicYuv*  pcPicYuvDst)
+Void  TComPicYuv::copyToPic (TComPicYuv*  pcPicYuvDst) const
 {
   assert( m_iPicWidth  == pcPicYuvDst->getWidth()  );
   assert( m_iPicHeight == pcPicYuvDst->getHeight() );
@@ -220,7 +220,7 @@ Void  TComPicYuv::copyToPic (TComPicYuv*  pcPicYuvDst)
   return;
 }
 
-Void  TComPicYuv::copyToPicLuma (TComPicYuv*  pcPicYuvDst)
+Void  TComPicYuv::copyToPicLuma (TComPicYuv*  pcPicYuvDst) const
 {
   assert( m_iPicWidth  == pcPicYuvDst->getWidth()  );
   assert( m_iPicHeight == pcPicYuvDst->getHeight() );
@@ -229,7 +229,7 @@ Void  TComPicYuv::copyToPicLuma (TComPicYuv*  pcPicYuvDst)
   return;
 }
 
-Void  TComPicYuv::copyToPicCb (TComPicYuv*  pcPicYuvDst)
+Void  TComPicYuv::copyToPicCb (TComPicYuv*  pcPicYuvDst) const
 {
   assert( m_iPicWidth  == pcPicYuvDst->getWidth()  );
   assert( m_iPicHeight == pcPicYuvDst->getHeight() );
@@ -238,7 +238,7 @@ Void  TComPicYuv::copyToPicCb (TComPicYuv*  pcPicYuvDst)
   return;
 }
 
-Void  TComPicYuv::copyToPicCr (TComPicYuv*  pcPicYuvDst)
+Void  TComPicYuv::copyToPicCr (TComPicYuv*  pcPicYuvDst) const
 {
   assert( m_iPicWidth  == pcPicYuvDst->getWidth()  );
   assert( m_iPicHeight == pcPicYuvDst->getHeight() );
@@ -271,7 +271,6 @@ Void TComPicYuv::getLumaMinMax( Int *pMin, Int *pMax )
 
 Void TComPicYuv::extendPicBorder ()
 {
-  if ( m_bIsBorderExtended ) return;
   
   xExtendPicCompBorder( getLumaAddr(), getStride(),  getWidth(),      getHeight(),      m_iLumaMarginX,   m_iLumaMarginY   );
   xExtendPicCompBorder( getCbAddr()  , getCStride(), getWidth() >> 1, getHeight() >> 1, m_iChromaMarginX, m_iChromaMarginY );

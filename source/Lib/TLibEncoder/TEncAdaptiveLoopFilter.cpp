@@ -381,13 +381,14 @@ Void TEncAdaptiveLoopFilter::ALFProcess( ALFParam* pcAlfParam, Double dLambda, U
   // set lambda
   m_dLambdaLuma   = dLambda;
   m_dLambdaChroma = dLambda;
-  
+ 
   TComPicYuv* pcPicOrg = m_pcPic->getPicYuvOrg();
   
   // extend image for filtering
   TComPicYuv* pcPicYuvRec    = m_pcPic->getPicYuvRec();
   TComPicYuv* pcPicYuvExtRec = m_pcTempPicYuv;
-  
+ 
+  // Copy across current resolution data
   pcPicYuvRec->copyToPic(pcPicYuvExtRec);
 #if MTK_NONCROSS_INLOOP_FILTER
   if(!m_bUseNonCrossALF)
@@ -713,9 +714,9 @@ Void TEncAdaptiveLoopFilter::xEncodeCUAlfCtrlFlag(TComDataCU* pcCU, UInt uiAbsPa
   UInt uiBPelY   = uiTPelY + (g_uiMaxCUHeight>>uiDepth) - 1;
   
 #if AD_HOCS_SLICES  
-  if( ( uiRPelX >= pcCU->getSlice()->getSPS()->getWidth() ) || ( uiBPelY >= pcCU->getSlice()->getSPS()->getHeight() ) )
+  if( ( uiRPelX >= pcCU->getSlice()->getPPS()->getPictureWidth() ) || ( uiBPelY >= pcCU->getSlice()->getPPS()->getPictureHeight() ) )
 #else  
-  if( ( uiRPelX >= pcCU->getSlice()->getSPS()->getWidth() ) || ( uiBPelY >= pcCU->getSlice()->getSPS()->getHeight() ) )
+  if( ( uiRPelX >= pcCU->getSlice()->getPPS()->getPictureWidth() ) || ( uiBPelY >= pcCU->getSlice()->getPPS()->getPictureHeight() ) )
 #endif  
   {
     bBoundary = true;
@@ -730,9 +731,9 @@ Void TEncAdaptiveLoopFilter::xEncodeCUAlfCtrlFlag(TComDataCU* pcCU, UInt uiAbsPa
       uiTPelY   = pcCU->getCUPelY() + g_auiRasterToPelY[ g_auiZscanToRaster[uiAbsPartIdx] ];
       
 #if AD_HOCS_SLICES      
-      if( ( uiLPelX < pcCU->getSlice()->getSPS()->getWidth() ) && ( uiTPelY < pcCU->getSlice()->getSPS()->getHeight() ) )
+      if( ( uiLPelX < pcCU->getSlice()->getPPS()->getPictureWidth() ) && ( uiTPelY < pcCU->getSlice()->getPPS()->getPictureHeight() ) )
 #else
-      if( ( uiLPelX < pcCU->getSlice()->getSPS()->getWidth() ) && ( uiTPelY < pcCU->getSlice()->getSPS()->getHeight() ) )
+      if( ( uiLPelX < pcCU->getSlice()->getPPS()->getPictureWidth() ) && ( uiTPelY < pcCU->getSlice()->getPPS()->getPictureHeight() ) )
 #endif      
         xEncodeCUAlfCtrlFlag(pcCU, uiAbsPartIdx, uiDepth+1);
     }
@@ -1319,7 +1320,7 @@ Void TEncAdaptiveLoopFilter::xCopyDecToRestCU(TComDataCU* pcCU, UInt uiAbsPartId
   UInt uiTPelY   = pcCU->getCUPelY() + g_auiRasterToPelY[ g_auiZscanToRaster[uiAbsPartIdx] ];
   UInt uiBPelY   = uiTPelY + (g_uiMaxCUHeight>>uiDepth) - 1;
   
-  if( ( uiRPelX >= pcCU->getSlice()->getSPS()->getWidth() ) || ( uiBPelY >= pcCU->getSlice()->getSPS()->getHeight() ) )
+  if( ( uiRPelX >= pcCU->getSlice()->getPPS()->getPictureWidth() ) || ( uiBPelY >= pcCU->getSlice()->getPPS()->getPictureHeight() ) )
   {
     bBoundary = true;
   }
@@ -1332,7 +1333,7 @@ Void TEncAdaptiveLoopFilter::xCopyDecToRestCU(TComDataCU* pcCU, UInt uiAbsPartId
       uiLPelX   = pcCU->getCUPelX() + g_auiRasterToPelX[ g_auiZscanToRaster[uiAbsPartIdx] ];
       uiTPelY   = pcCU->getCUPelY() + g_auiRasterToPelY[ g_auiZscanToRaster[uiAbsPartIdx] ];
       
-      if( ( uiLPelX < pcCU->getSlice()->getSPS()->getWidth() ) && ( uiTPelY < pcCU->getSlice()->getSPS()->getHeight() ) )      
+      if( ( uiLPelX < pcCU->getSlice()->getPPS()->getPictureWidth() ) && ( uiTPelY < pcCU->getSlice()->getPPS()->getPictureHeight() ) )      
         xCopyDecToRestCU(pcCU, uiAbsPartIdx, uiDepth+1, pcPicDec, pcPicRest);
     }
     return;
@@ -2731,7 +2732,7 @@ Void TEncAdaptiveLoopFilter::xSetCUAlfCtrlFlag_qc(TComDataCU* pcCU, UInt uiAbsPa
   UInt uiTPelY   = pcCU->getCUPelY() + g_auiRasterToPelY[ g_auiZscanToRaster[uiAbsPartIdx] ];
   UInt uiBPelY   = uiTPelY + (g_uiMaxCUHeight>>uiDepth) - 1;
   
-  if( ( uiRPelX >= pcCU->getSlice()->getSPS()->getWidth() ) || ( uiBPelY >= pcCU->getSlice()->getSPS()->getHeight() ) )
+  if( ( uiRPelX >= pcCU->getSlice()->getPPS()->getPictureWidth() ) || ( uiBPelY >= pcCU->getSlice()->getPPS()->getPictureHeight() ) )
   {
     bBoundary = true;
   }
@@ -2744,7 +2745,7 @@ Void TEncAdaptiveLoopFilter::xSetCUAlfCtrlFlag_qc(TComDataCU* pcCU, UInt uiAbsPa
       uiLPelX   = pcCU->getCUPelX() + g_auiRasterToPelX[ g_auiZscanToRaster[uiAbsPartIdx] ];
       uiTPelY   = pcCU->getCUPelY() + g_auiRasterToPelY[ g_auiZscanToRaster[uiAbsPartIdx] ];
       
-      if( ( uiLPelX < pcCU->getSlice()->getSPS()->getWidth() ) && ( uiTPelY < pcCU->getSlice()->getSPS()->getHeight() ) )
+      if( ( uiLPelX < pcCU->getSlice()->getPPS()->getPictureWidth() ) && ( uiTPelY < pcCU->getSlice()->getPPS()->getPictureHeight() ) )
 #if TSB_ALF_HEADER
         xSetCUAlfCtrlFlag_qc(pcCU, uiAbsPartIdx, uiDepth+1, uiAlfCtrlDepth, pcPicOrg, pcPicDec, pcPicRest, ruiDist, pAlfParam);
 #else
@@ -2775,14 +2776,14 @@ Void TEncAdaptiveLoopFilter::xSetCUAlfCtrlFlag_qc(TComDataCU* pcCU, UInt uiAbsPa
     uiRPelX   = uiLPelX + iWidth  - 1;
     uiBPelY   = uiTPelY + iHeight - 1;
 
-    if( uiRPelX >= pcCU->getSlice()->getSPS()->getWidth() )
+    if( uiRPelX >= pcCU->getSlice()->getPPS()->getPictureWidth() )
     {
-      iWidth = pcCU->getSlice()->getSPS()->getWidth() - uiLPelX;
+      iWidth = pcCU->getSlice()->getPPS()->getPictureWidth() - uiLPelX;
     }
     
-    if( uiBPelY >= pcCU->getSlice()->getSPS()->getHeight() )
+    if( uiBPelY >= pcCU->getSlice()->getPPS()->getPictureHeight() )
     {
-      iHeight = pcCU->getSlice()->getSPS()->getHeight() - uiTPelY;
+      iHeight = pcCU->getSlice()->getPPS()->getPictureHeight() - uiTPelY;
     }
     
     uiSetDepth = uiAlfCtrlDepth;
@@ -4912,7 +4913,7 @@ Void TEncSampleAdaptiveOffset::xQuadTreeDecisionFunc(Int iPartIdx, TComPicYuv* p
 /** destory TEncSampleAdaptiveOffset class.
  * \param  
  */
-Void TEncSampleAdaptiveOffset::destoryEncBuffer()
+Void TEncSampleAdaptiveOffset::destroyEncBuffer()
 {
 
     for (Int i=0;i<m_iNumTotalParts;i++)
@@ -5126,15 +5127,15 @@ Void TEncSampleAdaptiveOffset::calcAoStatsCu(Int iAddr, Int iPartIdx)
   Int x,y;
   TComDataCU *pTmpCu = m_pcPic->getCU(iAddr);
   TComSPS *pTmpSPS =  m_pcPic->getSlice(0)->getSPS();
-
+  TComPPS *pTmpPPS =  m_pcPic->getSlice(0)->getPPS();
 
   Pel* pOrg      ;
   Pel* pRec      ;
   Int iStride    =  m_pcPic->getStride();
   Int iLcuWidth  = pTmpSPS->getMaxCUHeight();
   Int iLcuHeight = pTmpSPS->getMaxCUWidth();
-  Int iPicWidth  = pTmpSPS->getWidth();
-  Int iPicHeight = pTmpSPS->getHeight();
+  Int iPicWidth  = pTmpPPS->getPictureWidth();
+  Int iPicHeight = pTmpPPS->getPictureHeight();
   UInt uiLPelX   = pTmpCu->getCUPelX();
   UInt uiRPelX   = uiLPelX + iLcuWidth;
   UInt uiTPelY   = pTmpCu->getCUPelY();

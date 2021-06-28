@@ -73,10 +73,15 @@ void TDecCavlc::parseSEI(SEImessages& seis)
   assert(m_pcBitstream->getNumBitsLeft() == 8); /* rsbp_trailing_bits */
 }
 
-Void TDecCavlc::parsePPS(TComPPS* pcPPS)
+Void TDecCavlc::parsePPS(TComPPS* pcPPS, const std::vector<TComSPS*>& cSPSList)
 {
   UInt  uiCode;
-  
+
+  xReadUvlc( uiCode ); pcPPS->setPPSId( uiCode );
+  xReadUvlc( uiCode ); pcPPS->setSPSId( uiCode );
+  xReadUvlc ( uiCode );
+  UInt uiPicSizeIdx = uiCode;
+
 #if CONSTRAINED_INTRA_PRED
   xReadFlag ( uiCode ); pcPPS->setConstrainedIntraPred( uiCode ? true : false );
 #endif
@@ -88,6 +93,21 @@ Void TDecCavlc::parsePPS(TComPPS* pcPPS)
     xReadFlag( uiCode );  // temporal_layer_switching_point_flag
     pcPPS->setTLayerSwitchingFlag( i, uiCode > 0 ? true : false );
   }
+
+  // Set the SPS
+
+  Bool bFoundSPS = false;
+  for (size_t s=0; s<cSPSList.size(); ++s){
+    if (pcPPS->getSPSId()==cSPSList[s]->getSPSId()){
+      pcPPS->setSPS(cSPSList[s]);
+      bFoundSPS = true;
+      break;
+    }
+  }
+  assert(bFoundSPS);
+
+  // Need SPS in order to set picture size
+  pcPPS->setPictureSizeIdx     ( uiPicSizeIdx  );
 
 #if SUB_LCU_DQP
   if( pcPPS->getSPS()->getUseDQP() )
@@ -109,11 +129,12 @@ Void TDecCavlc::parseSPS(TComSPS* pcSPS)
   UInt  uiCode;
   
   // Structure
+  xReadUvlc( uiCode ); pcSPS->setSPSId( uiCode );
   xReadCode ( 3, uiCode ); // maximum number of temporal layers minus 1
   pcSPS->setMaxTLayers( uiCode+1 );
+  xReadUvlc ( uiCode ); pcSPS->setNominalWidth       ( uiCode    );
+  xReadUvlc ( uiCode ); pcSPS->setNominalHeight      ( uiCode    );
 
-  xReadUvlc ( uiCode ); pcSPS->setWidth       ( uiCode    );
-  xReadUvlc ( uiCode ); pcSPS->setHeight      ( uiCode    );
   xReadUvlc ( uiCode ); pcSPS->setPadX        ( uiCode    );
   xReadUvlc ( uiCode ); pcSPS->setPadY        ( uiCode    );
   
@@ -215,7 +236,7 @@ Void TDecCavlc::parseSPS(TComSPS* pcSPS)
   return;
 }
 
-Void TDecCavlc::parseSliceHeader (TComSlice*& rpcSlice)
+Void TDecCavlc::parseSliceHeader (TComSlice*& rpcSlice, const std::vector<TComPPS*>& cPPSList )
 {
   UInt  uiCode;
   Int   iCode;
@@ -224,6 +245,7 @@ Void TDecCavlc::parseSliceHeader (TComSlice*& rpcSlice)
   Bool bEntropySlice = uiCode ? true : false;
   if (!bEntropySlice)
   {
+    xReadUvlc ( uiCode ); rpcSlice->setPPS( cPPSList, uiCode );
     xReadCode (10, uiCode);  rpcSlice->setPOC              (uiCode);             // 9 == SPS->Log2MaxFrameNum()
     xReadUvlc (   uiCode);  rpcSlice->setSliceType        ((SliceType)uiCode);
     xReadSvlc (    iCode);  rpcSlice->setSliceQp          (iCode);

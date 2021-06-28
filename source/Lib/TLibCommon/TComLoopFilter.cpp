@@ -78,6 +78,15 @@ TComLoopFilter::TComLoopFilter()
 : m_uiNumPartitions( 0 )
 {
   m_uiDisableDeblockingFilterIdc = 0;
+  for( UInt uiDir = 0; uiDir < 2; uiDir++ )
+  {
+    for( UInt uiPlane = 0; uiPlane < 3; uiPlane++ )
+    {
+      m_aapucBS[uiDir][uiPlane] = NULL;
+      m_aapbEdgeFilter[uiDir][uiPlane] = NULL;
+    }
+  }
+
 }
 
 TComLoopFilter::~TComLoopFilter()
@@ -95,6 +104,7 @@ Void TComLoopFilter::setCfg( UInt uiDisableDblkIdc, Int iAlphaOffset, Int iBetaO
 
 Void TComLoopFilter::create( UInt uiMaxCUDepth )
 {
+  destroy();
   m_uiNumPartitions = 1 << ( uiMaxCUDepth<<1 );
   for( UInt uiDir = 0; uiDir < 2; uiDir++ )
   {
@@ -112,8 +122,14 @@ Void TComLoopFilter::destroy()
   {
     for( UInt uiPlane = 0; uiPlane < 3; uiPlane++ )
     {
-      delete [] m_aapucBS       [uiDir][uiPlane];
-      delete [] m_aapbEdgeFilter[uiDir][uiPlane];
+      if (m_aapucBS[uiDir][uiPlane] != NULL ){
+        delete [] m_aapucBS       [uiDir][uiPlane];
+	m_aapucBS[uiDir][uiPlane] = NULL;
+      }
+      if (m_aapbEdgeFilter[uiDir][uiPlane] != NULL ){
+        delete [] m_aapbEdgeFilter[uiDir][uiPlane];
+	m_aapbEdgeFilter[uiDir][uiPlane] = NULL;
+      }
     }
   }
 }
@@ -209,7 +225,7 @@ Void TComLoopFilter::xDeblockCU( TComDataCU* pcCU, UInt uiAbsZorderIdx, UInt uiD
     {
       UInt uiLPelX   = pcCU->getCUPelX() + g_auiRasterToPelX[ g_auiZscanToRaster[uiAbsZorderIdx] ];
       UInt uiTPelY   = pcCU->getCUPelY() + g_auiRasterToPelY[ g_auiZscanToRaster[uiAbsZorderIdx] ];
-      if( ( uiLPelX < pcCU->getSlice()->getSPS()->getWidth() ) && ( uiTPelY < pcCU->getSlice()->getSPS()->getHeight() ) )
+      if( ( uiLPelX < pcPic->getWidth() ) && ( uiTPelY < pcPic->getHeight() ) )
 #if PARALLEL_MERGED_DEBLK
         xDeblockCU( pcCU, uiAbsZorderIdx, uiDepth+1, Edge );
 #else

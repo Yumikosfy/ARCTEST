@@ -47,7 +47,7 @@ extern bool g_md5_mismatch; ///< top level flag to signal when there is a decode
 
 #include <time.h>
 
-static void calcAndPrintMD5Status(TComPicYuv& pic, const SEImessages* seis);
+static void calcAndPrintMD5Status(TComPic& pic, const SEImessages* seis);
 
 // ====================================================================================================================
 // Constructor / destructor / initialization / destroy
@@ -83,7 +83,7 @@ Void TDecGop::init( TDecEntropy*            pcEntropyDecoder,
                    TComLoopFilter*         pcLoopFilter, 
                    TComAdaptiveLoopFilter* pcAdaptiveLoopFilter 
 #if MTK_SAO
-                   ,TComSampleAdaptiveOffset* pcSAO
+                   ,TComSampleAdaptiveOffset** pcSAO
 #endif                   
                    )
 {
@@ -106,6 +106,7 @@ Void TDecGop::init( TDecEntropy*            pcEntropyDecoder,
 
 Void TDecGop::decompressGop(TComInputBitstream* pcBitstream, TComPic*& rpcPic, Bool bExecuteDeblockAndAlf)
 {
+  Int iPicSizeIdx = rpcPic->getPictureSizeIdx();
   TComSlice*  pcSlice = rpcPic->getSlice(rpcPic->getCurrSliceIdx());
 
   //-- For time output for each slice
@@ -158,17 +159,17 @@ Void TDecGop::decompressGop(TComInputBitstream* pcBitstream, TComPic*& rpcPic, B
 #if MTK_SAO
       if( rpcPic->getSlice(0)->getSPS()->getUseSAO() )
       {  
-        m_pcSAO->InitSao(&m_cSaoParam);
-        m_pcEntropyDecoder->decodeSaoParam(&m_cSaoParam);
+        m_pcSAO[iPicSizeIdx]->InitSao(&m_cSaoParam[iPicSizeIdx]);
+        m_pcEntropyDecoder->decodeSaoParam(&m_cSaoParam[iPicSizeIdx]);
       }
 #endif
 
       if ( rpcPic->getSlice(0)->getSPS()->getUseALF() )
       {
 #if TSB_ALF_HEADER
-        m_pcAdaptiveLoopFilter->setNumCUsInFrame(rpcPic);
+        m_pcAdaptiveLoopFilter[iPicSizeIdx].setNumCUsInFrame(rpcPic);
 #endif
-        m_pcAdaptiveLoopFilter->allocALFParam(&m_cAlfParam);
+        m_pcAdaptiveLoopFilter[iPicSizeIdx].allocALFParam(&m_cAlfParam);
         m_pcEntropyDecoder->decodeAlfParam( &m_cAlfParam );
       }
     }
@@ -186,10 +187,10 @@ Void TDecGop::decompressGop(TComInputBitstream* pcBitstream, TComPic*& rpcPic, B
     {
       if( rpcPic->getSlice(0)->getSPS()->getUseSAO())
       {
-        m_pcSAO->SAOProcess(rpcPic, &m_cSaoParam);
+        m_pcSAO[iPicSizeIdx]->SAOProcess(rpcPic, &m_cSaoParam[iPicSizeIdx]);
 
 #if E057_INTRA_PCM && E192_SPS_PCM_FILTER_DISABLE_SYNTAX
-        m_pcAdaptiveLoopFilter->PCMLFDisableProcess(rpcPic);
+        m_pcAdaptiveLoopFilter[iPicSizeIdx].PCMLFDisableProcess(rpcPic);
 #endif
       }
     }
@@ -200,36 +201,36 @@ Void TDecGop::decompressGop(TComInputBitstream* pcBitstream, TComPic*& rpcPic, B
 #if MTK_NONCROSS_INLOOP_FILTER  
       if(pcSlice->getSPS()->getLFCrossSliceBoundaryFlag())
       {
-        m_pcAdaptiveLoopFilter->setUseNonCrossAlf(false);
+        m_pcAdaptiveLoopFilter[iPicSizeIdx].setUseNonCrossAlf(false);
       }
       else
       {
         puiILSliceStartLCU[uiILSliceCount] = rpcPic->getNumCUsInFrame();
-        m_pcAdaptiveLoopFilter->setUseNonCrossAlf( (uiILSliceCount > 1) );
-        if(m_pcAdaptiveLoopFilter->getUseNonCrossAlf())
+        m_pcAdaptiveLoopFilter[iPicSizeIdx].setUseNonCrossAlf( (uiILSliceCount > 1) );
+        if(m_pcAdaptiveLoopFilter[iPicSizeIdx].getUseNonCrossAlf())
         {
-          m_pcAdaptiveLoopFilter->setNumSlicesInPic( uiILSliceCount );
-          m_pcAdaptiveLoopFilter->createSlice();
+          m_pcAdaptiveLoopFilter[iPicSizeIdx].setNumSlicesInPic( uiILSliceCount );
+          m_pcAdaptiveLoopFilter[iPicSizeIdx].createSlice();
           for(UInt i=0; i< uiILSliceCount ; i++)
           {
-            (*m_pcAdaptiveLoopFilter)[i].create(rpcPic, i, puiILSliceStartLCU[i], puiILSliceStartLCU[i+1]-1);
+            m_pcAdaptiveLoopFilter[iPicSizeIdx][i].create(rpcPic, i, puiILSliceStartLCU[i], puiILSliceStartLCU[i+1]-1);
           }
         }
       }
 #endif
-      m_pcAdaptiveLoopFilter->ALFProcess(rpcPic, &m_cAlfParam);
+      m_pcAdaptiveLoopFilter[iPicSizeIdx].ALFProcess(rpcPic, &m_cAlfParam);
 
 #if E057_INTRA_PCM && E192_SPS_PCM_FILTER_DISABLE_SYNTAX
-      m_pcAdaptiveLoopFilter->PCMLFDisableProcess(rpcPic);
+      m_pcAdaptiveLoopFilter[iPicSizeIdx].PCMLFDisableProcess(rpcPic);
 #endif
 
 #if MTK_NONCROSS_INLOOP_FILTER
-      if(m_pcAdaptiveLoopFilter->getUseNonCrossAlf())
+      if(m_pcAdaptiveLoopFilter[iPicSizeIdx].getUseNonCrossAlf())
       {
-        m_pcAdaptiveLoopFilter->destroySlice();
+        m_pcAdaptiveLoopFilter[iPicSizeIdx].destroySlice();
       }
 #endif
-      m_pcAdaptiveLoopFilter->freeALFParam(&m_cAlfParam);
+      m_pcAdaptiveLoopFilter[iPicSizeIdx].freeALFParam(&m_cAlfParam);
     }
     
 #if AMVP_BUFFERCOMPRESS
@@ -270,7 +271,7 @@ Void TDecGop::decompressGop(TComInputBitstream* pcBitstream, TComPic*& rpcPic, B
 
     if (m_pictureDigestEnabled)
     {
-      calcAndPrintMD5Status(*rpcPic->getPicYuvRec(), rpcPic->getSEIs());
+      calcAndPrintMD5Status(*rpcPic, rpcPic->getSEIs());
     }
 
 #if FIXED_ROUNDING_FRAME_MEMORY
@@ -296,11 +297,11 @@ Void TDecGop::decompressGop(TComInputBitstream* pcBitstream, TComPic*& rpcPic, B
  *            ***ERROR*** - calculated MD5 does not match the SEI message
  *            unk         - no SEI message was available for comparison
  */
-static void calcAndPrintMD5Status(TComPicYuv& pic, const SEImessages* seis)
+static void calcAndPrintMD5Status(TComPic& pic, const SEImessages* seis)
 {
-  /* calculate MD5sum for entire reconstructed picture */
+  /* calculate MD5sum for given level */
   unsigned char recon_digest[16];
-  calcMD5(pic, recon_digest);
+  calcMD5(*pic.getPicYuvRec(), recon_digest);
 
   /* compare digest against received version */
   const char* md5_ok = "(unk)";
@@ -319,10 +320,14 @@ static void calcAndPrintMD5Status(TComPicYuv& pic, const SEImessages* seis)
     }
   }
 
-  printf("[MD5:%s,%s] ", digestToString(recon_digest), md5_ok);
+  printf("[MD5:%s, %s] ", digestToString(recon_digest), md5_ok);
   if (md5_mismatch)
   {
     g_md5_mismatch = true;
     printf("[rxMD5:%s] ", digestToString(seis->picture_digest->digest));
   }
+
+  calcMD5(*pic.getPicYuvRec(1), recon_digest);
+  printf("[Level 1 MD5:%s] ", digestToString(recon_digest));
+
 }

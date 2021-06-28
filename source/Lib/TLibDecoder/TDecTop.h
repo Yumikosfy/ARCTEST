@@ -72,8 +72,8 @@ private:
 
   UInt                    m_uiValidPS;
   TComList<TComPic*>      m_cListPic;         //  Dynamic buffer
-  TComSPS                 m_cSPS;
-  TComPPS                 m_cPPS;
+  std::vector<TComSPS*>   m_cSPS;             //  List of SPSs in use
+  std::vector<TComPPS*>   m_cPPS;             //  List of PPSs in use
   TComSlice*              m_apcSlicePilot;
   
   SEImessages *m_SEIs; ///< "all" SEI messages.  If not NULL, we own the object.
@@ -89,9 +89,9 @@ private:
   TDecSbac                m_cSbacDecoder;
   TDecBinCABAC            m_cBinCABAC;
   TComLoopFilter          m_cLoopFilter;
-  TComAdaptiveLoopFilter  m_cAdaptiveLoopFilter;
+  TComAdaptiveLoopFilter  m_cAdaptiveLoopFilter[NUM_PIC_RESOLUTIONS];  ///< adaptive loop filter class for each resolution
 #if MTK_SAO
-  TComSampleAdaptiveOffset m_cSAO;
+  TComSampleAdaptiveOffset* m_cSAO[NUM_PIC_RESOLUTIONS]; ///< SAO class for each resolution
 #endif
 
   Bool isRandomAccessSkipPicture(Int& iSkipFrame,  Int& iPOCLastDisplay);
@@ -114,7 +114,7 @@ public:
   Void  init();
   Bool  decode(InputNALUnit& nalu, Int& iSkipFrame, Int& iPOCLastDisplay);
   
-  TComSPS *getSPS() { return (m_uiValidPS & 1) ? &m_cSPS : NULL; }
+  TComSPS *getSPS() { return (m_uiValidPS & 1) ? m_cSPS[m_cSPS.size()-1] : NULL; }// FIXME: just returning the last one
   
   Void  deletePicBuffer();
 

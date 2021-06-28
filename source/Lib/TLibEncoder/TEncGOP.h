@@ -1,7 +1,7 @@
 /* The copyright in this software is being made available under the BSD
  * License, included below. This software may be subject to other third party
  * and contributor rights, including patent rights, and no such rights are
- * granted under this license.  
+ * granted under this license.
  *
  * Copyright (c) 2010-2011, ITU/ISO/IEC
  * All rights reserved.
@@ -114,9 +114,14 @@ private:
 // #endif
 
 #if RVM_VCEGAM10
-  std::vector<Int> m_vRVM_RP;
+  std::vector<Int> m_vRVM_RP[NUM_PIC_RESOLUTIONS];
+  std::vector<Int> m_vRVM_RPTotal;
 #endif
 
+  Bool                   m_bPPSSent[NUM_PIC_RESOLUTIONS];
+  Bool                   m_bSPSSent;
+
+  double                 m_dLevelTime[NUM_PIC_RESOLUTIONS];
 public:
   TEncGOP();
   virtual ~TEncGOP();
@@ -147,12 +152,13 @@ protected:
   NalUnitType getNalUnitType( UInt uiPOCCurr );
 #endif
 
-  Void  xCalculateAddPSNR ( TComPic* pcPic, TComPicYuv* pcPicD, const AccessUnit&, Double dEncTime );
+  Void  xCalculateAddPSNR(  TComPic* pcPic, const AccessUnit& accessUnit, Double dEncTime );
   
   UInt64 xFindDistortionFrame (TComPicYuv* pcPic0, TComPicYuv* pcPic1);
 
 #if RVM_VCEGAM10
-  Double xCalculateRVM();
+  Double xCalculateRVM(Int i);
+  Double xCalculateRVMTotal();
 #endif
 };// END CLASS DEFINITION TEncGOP
 

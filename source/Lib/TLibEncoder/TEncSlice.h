@@ -61,8 +61,8 @@ private:
   
   // pictures
   TComList<TComPic*>*     m_pcListPic;                          ///< list of pictures
-  TComPicYuv*             m_apcPicYuvPred;                      ///< prediction picture buffer
-  TComPicYuv*             m_apcPicYuvResi;                      ///< residual picture buffer
+  TComPicYuv*             m_apcPicYuvPred[NUM_PIC_RESOLUTIONS]; ///< prediction picture buffer
+  TComPicYuv*             m_apcPicYuvResi[NUM_PIC_RESOLUTIONS]; ///< residual picture buffer
   
   // processing units
   TEncGOP*                m_pcGOPEncoder;                       ///< GOP encoder

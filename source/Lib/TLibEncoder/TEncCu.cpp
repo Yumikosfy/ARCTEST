@@ -408,7 +408,7 @@ Void TEncCu::xCompressCU( TComDataCU*& rpcBestCU, TComDataCU*& rpcTempCU, UInt u
   UInt uiTPelY   = rpcBestCU->getCUPelY();
   UInt uiBPelY   = uiTPelY + rpcBestCU->getHeight(0) - 1;
   
-  if( ( uiRPelX < rpcBestCU->getSlice()->getSPS()->getWidth() ) && ( uiBPelY < rpcBestCU->getSlice()->getSPS()->getHeight() ) )
+  if( ( uiRPelX < rpcBestCU->getSlice()->getPPS()->getPictureWidth() ) && ( uiBPelY < rpcBestCU->getSlice()->getPPS()->getPictureHeight() ) )
   {
     // do inter modes
     if( rpcBestCU->getSlice()->getSliceType() != I_SLICE )
@@ -538,7 +538,7 @@ Void TEncCu::xCompressCU( TComDataCU*& rpcBestCU, TComDataCU*& rpcTempCU, UInt u
       pcSubBestPartCU->initSubCU( rpcBestCU, uiPartUnitIdx, uhNextDepth );           // clear sub partition datas or init.
       pcSubTempPartCU->initSubCU( rpcBestCU, uiPartUnitIdx, uhNextDepth );           // clear sub partition datas or init.
       
-      if( ( pcSubBestPartCU->getCUPelX() < pcSubBestPartCU->getSlice()->getSPS()->getWidth() ) && ( pcSubBestPartCU->getCUPelY() < pcSubBestPartCU->getSlice()->getSPS()->getHeight() ) )
+      if( ( pcSubBestPartCU->getCUPelX() < pcSubBestPartCU->getSlice()->getPPS()->getPictureWidth() ) && ( pcSubBestPartCU->getCUPelY() < pcSubBestPartCU->getSlice()->getPPS()->getPictureHeight() ) )
       {
         if( m_bUseSBACRD )
         {
@@ -644,7 +644,7 @@ Void TEncCu::xCompressCUDQP( TComDataCU*& rpcBestCU, TComDataCU*& rpcTempCU, UIn
     iStartQP = rpcTempCU->getQP(0);
   }
 
-  if( ( uiRPelX < rpcBestCU->getSlice()->getSPS()->getWidth() ) && ( uiBPelY < rpcBestCU->getSlice()->getSPS()->getHeight() ) )
+  if( ( uiRPelX < rpcBestCU->getSlice()->getPPS()->getPictureWidth() ) && ( uiBPelY < rpcBestCU->getSlice()->getPPS()->getPictureHeight() ) )
   {
     for (iQP=iStartQP-idQP;  iQP<=iStartQP+idQP; iQP++)
     {
@@ -824,7 +824,7 @@ Void TEncCu::xCompressCUDQP( TComDataCU*& rpcBestCU, TComDataCU*& rpcTempCU, UIn
         pcSubBestPartCU->setLastCodedQP( rpcTempCU->getLastCodedQP() );
         pcSubTempPartCU->setLastCodedQP( rpcTempCU->getLastCodedQP() );
 
-        if( ( pcSubBestPartCU->getCUPelX() < pcSubBestPartCU->getSlice()->getSPS()->getWidth() ) && ( pcSubBestPartCU->getCUPelY() < pcSubBestPartCU->getSlice()->getSPS()->getHeight() ) )
+        if( ( pcSubBestPartCU->getCUPelX() < pcSubBestPartCU->getSlice()->getPPS()->getPictureWidth() ) && ( pcSubBestPartCU->getCUPelY() < pcSubBestPartCU->getSlice()->getPPS()->getPictureHeight() ) )
         {
           if( m_bUseSBACRD )
           {
@@ -923,7 +923,7 @@ Void TEncCu::xEncodeCU( TComDataCU* pcCU, UInt uiAbsPartIdx, UInt uiDepth )
   UInt uiTPelY   = pcCU->getCUPelY() + g_auiRasterToPelY[ g_auiZscanToRaster[uiAbsPartIdx] ];
   UInt uiBPelY   = uiTPelY + (g_uiMaxCUHeight>>uiDepth) - 1;
   
-  if( ( uiRPelX < pcCU->getSlice()->getSPS()->getWidth() ) && ( uiBPelY < pcCU->getSlice()->getSPS()->getHeight() ) )
+  if( ( uiRPelX < pcCU->getSlice()->getPPS()->getPictureWidth() ) && ( uiBPelY < pcCU->getSlice()->getPPS()->getPictureHeight() ) )
   {
     m_pcEntropyCoder->encodeSplitFlag( pcCU, uiAbsPartIdx, uiDepth );
   }
@@ -946,7 +946,7 @@ Void TEncCu::xEncodeCU( TComDataCU* pcCU, UInt uiAbsPartIdx, UInt uiDepth )
       uiLPelX   = pcCU->getCUPelX() + g_auiRasterToPelX[ g_auiZscanToRaster[uiAbsPartIdx] ];
       uiTPelY   = pcCU->getCUPelY() + g_auiRasterToPelY[ g_auiZscanToRaster[uiAbsPartIdx] ];
       
-      if( ( uiLPelX < pcCU->getSlice()->getSPS()->getWidth() ) && ( uiTPelY < pcCU->getSlice()->getSPS()->getHeight() ) )
+      if( ( uiLPelX < pcCU->getSlice()->getPPS()->getPictureWidth() ) && ( uiTPelY < pcCU->getSlice()->getPPS()->getPictureHeight() ) )
         xEncodeCU( pcCU, uiAbsPartIdx, uiDepth+1 );
     }
 #if SUB_LCU_DQP
